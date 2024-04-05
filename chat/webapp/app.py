@@ -34,6 +34,8 @@ import yaml
 import requests
 import bcrypt
 import hashlib
+import pyotp
+import random
 
 app = Flask(__name__)
 
@@ -144,11 +146,17 @@ def register():
             username = userDetails['username']
             password = userDetails['password']
             hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            
+
+            recoveryKey = random.randint(100000, 999999)
+            recoveryKey = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
             password_sha1 = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
             response = requests.get(f"https://api.pwnedpasswords.com/range/{password_sha1[:5]}")
             suffix = password_sha1[5:]
             matches = [line for line in response.text.split('\n') if line.startswith(suffix)]
+
+            
             if matches:
                 Pwnedcount = int(matches[0].split(':')[1])
                 print(f"pwned: {Pwnedcount} times")
@@ -163,13 +171,41 @@ def register():
                 if cur.fetchone() is not None:
                     error = 'User already exists. Please choose a different username.'
                 else:
-                    cur.execute("INSERT INTO users(username, password) VALUES(%s, %s)", (username, hashed))
+                    otpKey = pyotp.random_base32()
+                    cur.execute("INSERT INTO users(username, password, sec_key, rec_key) VALUES(%s, %s, %s, %s)", (username, hashed, otpKey, recoveryKey))
                     mysql.connection.commit()
                     cur.close()
-                    return redirect(url_for('login'))
+                    session['regUser'] = username
+                    return redirect(url_for('connectTo2FA'))
         else:
             error = 'Invalid reCAPTCHA. Please try again.'
     return render_template('register.html', error=error)
+
+@app.route('/connectTo2FA', methods=['GET', 'POST'])
+def connectTo2FA():
+    error = None
+    if 'regUser' not in session:
+        abort(403)
+    username = session.get('regUser')
+
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT sec_key FROM users WHERE username=%s", (username,))
+    secKey = cur.fetchone()[0]
+    cur.close()
+
+
+    if request.method == 'POST':
+        details = request.form
+        otp = details['otp']
+        print(f"input otp: {otp}")
+        
+        if pyotp.TOTP(secKey).verify(otp):
+            session.pop('regUser', None)
+            return redirect(url_for('login'))
+        else:
+            error = 'Invalid OTP. Please try again.'
+
+    return render_template('connectTo2FA.html', error=error, username=username, secKey=str(secKey))
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
