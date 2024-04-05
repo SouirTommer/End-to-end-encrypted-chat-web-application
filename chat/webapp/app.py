@@ -124,12 +124,38 @@ def login():
             if account and bcrypt.checkpw(password.encode('utf-8'), account[0].encode('utf-8')):
                 session['username'] = username
                 session['user_id'] = account[0]
-                return redirect(url_for('index'))
+                return redirect(url_for('login2FA'))
             else:
                 error = 'Invalid credentials'
         else:
             error = 'Invalid reCAPTCHA. Please try again.'
     return render_template('login.html', error=error, site_key=GOOGLE_RECAPTCHA_SITE_KEY)
+
+@app.route('/login2FA', methods=['GET', 'POST'])
+def login2FA():
+    error = None
+    if 'username' not in session:
+        abort(403)
+    username = session.get('username')
+
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT sec_key FROM users WHERE username=%s", (username,))
+    secKey = cur.fetchone()[0]
+    cur.close()
+
+
+    if request.method == 'POST':
+        details = request.form
+        otp = details['otp']
+        print(f"input otp: {otp}")
+        
+        if pyotp.TOTP(secKey).verify(otp):
+            return redirect(url_for('index'))
+        else:
+            error = 'Invalid OTP. Please try again.'
+
+    return render_template('login2FA.html', error=error, username=username)
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -149,6 +175,7 @@ def register():
             
 
             recoveryKey = random.randint(100000, 999999)
+            print(f"recoveryKey: {recoveryKey}")
             recoveryKey = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
             password_sha1 = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
@@ -172,7 +199,7 @@ def register():
                     error = 'User already exists. Please choose a different username.'
                 else:
                     otpKey = pyotp.random_base32()
-                    cur.execute("INSERT INTO users(username, password, sec_key, rec_key) VALUES(%s, %s, %s, %s)", (username, hashed, otpKey, recoveryKey))
+                    cur.execute("INSERT INTO users(username, password, sec_key, rec_key) VALUES(%s, %s, %s, %s)", (username, hashed, otpKey, recoveryKey,))
                     mysql.connection.commit()
                     cur.close()
                     session['regUser'] = username
