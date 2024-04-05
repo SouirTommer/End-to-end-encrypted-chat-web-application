@@ -31,11 +31,12 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from flask_mysqldb import MySQL
 from flask_session import Session
 import yaml
+import requests
 
 app = Flask(__name__)
 
 # Configure secret key and Flask-Session
-app.config['SECRET_KEY'] = 'your_secret_key_here'
+app.config['SECRET_KEY'] = '6LfvfLApAAAAAPRbNh_h-j7ZEfA4pJ-LXbk208nF'
 app.config['SESSION_TYPE'] = 'filesystem'  # Options: 'filesystem', 'redis', 'memcached', etc.
 app.config['SESSION_PERMANENT'] = False
 app.config['SESSION_USE_SIGNER'] = True  # To sign session cookies for extra security
@@ -49,6 +50,10 @@ app.config['MYSQL_PASSWORD'] = db_config['mysql_password']
 app.config['MYSQL_DB'] = db_config['mysql_db']
 
 mysql = MySQL(app)
+
+GOOGLE_RECAPTCHA_SITE_KEY = '6LfvfLApAAAAABC2Lo-4RAi6JE6CgJ8Lysa3xnir'
+GOOGLE_RECAPTCHA_SECRET_KEY = '6LfvfLApAAAAAPRbNh_h-j7ZEfA4pJ-LXbk208nF'
+GOOGLE_RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
 # Initialize the Flask-Session
 Session(app)
@@ -100,19 +105,26 @@ def fetch_messages():
 def login():
     error = None
     if request.method == 'POST':
-        userDetails = request.form
-        username = userDetails['username']
-        password = userDetails['password']
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT user_id FROM users WHERE username=%s AND password=%s", (username, password,))
-        account = cur.fetchone()
-        if account:
-            session['username'] = username
-            session['user_id'] = account[0]
-            return redirect(url_for('index'))
+        secret_response = request.form['g-recaptcha-response']
+        verify_response = requests.post(
+            url=f'{GOOGLE_RECAPTCHA_VERIFY_URL}?secret={GOOGLE_RECAPTCHA_SECRET_KEY}&response={secret_response}').json()
+        
+        if verify_response['success']:
+            userDetails = request.form
+            username = userDetails['username']
+            password = userDetails['password']
+            cur = mysql.connection.cursor()
+            cur.execute("SELECT user_id FROM users WHERE username=%s AND password=%s", (username, password,))
+            account = cur.fetchone()
+            if account:
+                session['username'] = username
+                session['user_id'] = account[0]
+                return redirect(url_for('index'))
+            else:
+                error = 'Invalid credentials'
         else:
-            error = 'Invalid credentials'
-    return render_template('login.html', error=error)
+            error = 'Invalid reCAPTCHA. Please try again.'
+    return render_template('login.html', error=error, site_key=GOOGLE_RECAPTCHA_SITE_KEY)
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
