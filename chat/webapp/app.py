@@ -32,6 +32,8 @@ from flask_mysqldb import MySQL
 from flask_session import Session
 import yaml
 import requests
+import bcrypt
+import hashlib
 
 app = Flask(__name__)
 
@@ -113,10 +115,11 @@ def login():
             userDetails = request.form
             username = userDetails['username']
             password = userDetails['password']
+            
             cur = mysql.connection.cursor()
-            cur.execute("SELECT user_id FROM users WHERE username=%s AND password=%s", (username, password,))
+            cur.execute("SELECT password FROM users WHERE username=%s", (username,))
             account = cur.fetchone()
-            if account:
+            if account and bcrypt.checkpw(password.encode('utf-8'), account[0].encode('utf-8')):
                 session['username'] = username
                 session['user_id'] = account[0]
                 return redirect(url_for('index'))
@@ -134,19 +137,36 @@ def register():
         verify_response = requests.post(
             url=f'{GOOGLE_RECAPTCHA_VERIFY_URL}?secret={GOOGLE_RECAPTCHA_SECRET_KEY}&response={secret_response}').json()
         
+        Pwnedcount = 0
+
         if verify_response['success']:
             userDetails = request.form
             username = userDetails['username']
             password = userDetails['password']
-            cur = mysql.connection.cursor()
-            cur.execute("SELECT user_id FROM users WHERE username=%s", (username,))
-            if cur.fetchone() is not None:
-                error = 'User already exists. Please choose a different username.'
+            hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+            password_sha1 = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+            response = requests.get(f"https://api.pwnedpasswords.com/range/{password_sha1[:5]}")
+            suffix = password_sha1[5:]
+            matches = [line for line in response.text.split('\n') if line.startswith(suffix)]
+            if matches:
+                Pwnedcount = int(matches[0].split(':')[1])
+                print(f"pwned: {Pwnedcount} times")
+
+            # error = 'This password has been pwned. Please choose a different password.'
+            if Pwnedcount > 0:
+                error = 'This password has been pwned. Please choose a different password.'
+                return render_template('register.html', error=error)
             else:
-                cur.execute("INSERT INTO users(username, password) VALUES(%s, %s)", (username, password,))
-                mysql.connection.commit()
-                cur.close()
-                return redirect(url_for('login'))
+                cur = mysql.connection.cursor()
+                cur.execute("SELECT user_id FROM users WHERE username=%s", (username,))
+                if cur.fetchone() is not None:
+                    error = 'User already exists. Please choose a different username.'
+                else:
+                    cur.execute("INSERT INTO users(username, password) VALUES(%s, %s)", (username, hashed))
+                    mysql.connection.commit()
+                    cur.close()
+                    return redirect(url_for('login'))
         else:
             error = 'Invalid reCAPTCHA. Please try again.'
     return render_template('register.html', error=error)
