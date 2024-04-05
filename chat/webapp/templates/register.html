@@ -13,12 +13,13 @@
     <script type="text/javascript" src="{{ url_for('static', filename='zxcvbn.js') }}"></script>
 
     <script>
+        var pwdScore = 0;
         function checkPassword(password) {
             var result = zxcvbn(password, []);
             var warning = result.feedback.warning;
             var suggestions = result.feedback.suggestions;
 
-            var pwdScore = result.score;
+            pwdScore = result.score;
 
             if (pwdScore === 0) {
                 document.getElementById('passwordlabel').innerHTML = 'Very weak';
@@ -47,6 +48,15 @@
 
             document.getElementById('passwordStrength').innerHTML = passwordStrength;
         }
+
+        function checkPwdScore() {
+            if (pwdScore < 3) {
+                alert('Your password is too weak. Please choose a stronger password.');
+                return false;  // prevent form submission
+            }
+            return true;  // allow form submission
+        }
+
     </script>
 </head>
 <body>
@@ -62,7 +72,7 @@
         {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
-        <form action="/register" method="post">
+        <form action="/register" method="post" onsubmit="return checkPwdScore();">
             <div class="form-group">
                 <label for="username">Username</label>
                 <input type="text" class="form-control" id="username" name="username" required>
