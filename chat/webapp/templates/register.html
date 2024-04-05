@@ -9,7 +9,45 @@
     <!-- External CSS -->
     <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
     <script src="https://www.google.com/recaptcha/enterprise.js" async defer></script>
-    <script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit" async defer></script>   
+    <script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit" async defer></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='zxcvbn.js') }}"></script>
+
+    <script>
+        function checkPassword(password) {
+            var result = zxcvbn(password, []);
+            var warning = result.feedback.warning;
+            var suggestions = result.feedback.suggestions;
+
+            var pwdScore = result.score;
+
+            if (pwdScore === 0) {
+                document.getElementById('passwordlabel').innerHTML = 'Very weak';
+                document.getElementById('passwordlabel').style.color = 'red';
+            } else if (pwdScore === 1) {
+                document.getElementById('passwordlabel').innerHTML = 'Weak';
+                document.getElementById('passwordlabel').style.color = 'red';
+            } else if (pwdScore === 2) {
+                document.getElementById('passwordlabel').innerHTML = 'Medium';
+                document.getElementById('passwordlabel').style.color = 'orange';
+            } else if (pwdScore === 3) {
+                document.getElementById('passwordlabel').innerHTML = 'Strong';
+                document.getElementById('passwordlabel').style.color = 'green';
+            } else if (pwdScore === 4) {
+                document.getElementById('passwordlabel').innerHTML = 'Very strong';
+                document.getElementById('passwordlabel').style.color = 'darkgreen';
+            }
+            var passwordStrength = "";
+
+            if (warning.length > 0) {
+                passwordStrength += '<br> Warning: ' + warning;
+            }
+            if (suggestions.length > 0) {
+                passwordStrength += '<br> Suggestions: ' + suggestions;
+            }
+
+            document.getElementById('passwordStrength').innerHTML = passwordStrength;
+        }
+    </script>
 </head>
 <body>
     <div class="login-container">
@@ -31,7 +69,9 @@
             </div>
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" class="form-control" id="password" name="password" required>
+                <label for="password" id="passwordlabel">          </label>
+                <input type="password" class="form-control" id="password" name="password" oninput="checkPassword(this.value)" required>
+                <label id="passwordStrength" style="font-size: small;"></label>
             </div>
             <div class="g-recaptcha" data-sitekey="6LfvfLApAAAAABC2Lo-4RAi6JE6CgJ8Lysa3xnir" data-action="Register"></div>
             <br/>
