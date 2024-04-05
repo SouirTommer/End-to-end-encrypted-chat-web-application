@@ -126,6 +126,31 @@ def login():
             error = 'Invalid reCAPTCHA. Please try again.'
     return render_template('login.html', error=error, site_key=GOOGLE_RECAPTCHA_SITE_KEY)
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    error = None
+    if request.method == 'POST':
+        secret_response = request.form['g-recaptcha-response']
+        verify_response = requests.post(
+            url=f'{GOOGLE_RECAPTCHA_VERIFY_URL}?secret={GOOGLE_RECAPTCHA_SECRET_KEY}&response={secret_response}').json()
+        
+        if verify_response['success']:
+            userDetails = request.form
+            username = userDetails['username']
+            password = userDetails['password']
+            cur = mysql.connection.cursor()
+            cur.execute("SELECT user_id FROM users WHERE username=%s", (username,))
+            if cur.fetchone() is not None:
+                error = 'User already exists. Please choose a different username.'
+            else:
+                cur.execute("INSERT INTO users(username, password) VALUES(%s, %s)", (username, password,))
+                mysql.connection.commit()
+                cur.close()
+                return redirect(url_for('login'))
+        else:
+            error = 'Invalid reCAPTCHA. Please try again.'
+    return render_template('register.html', error=error)
+
 @app.route('/send_message', methods=['POST'])
 def send_message():
     if not request.json or not 'message_text' in request.json:
