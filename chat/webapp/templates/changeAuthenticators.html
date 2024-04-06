@@ -21,37 +21,20 @@
             {% endfor %}
           {% endif %}
         {% endwith %}
-        <h2 class="text-center">Please verify the OTP</h2>
+        <h2 class="text-center">Change Authenticators</h2>
         {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
-        <form action="/connectTo2FA" method="post">
-            <div class="form-group">
-                <br>
-                <label for="qrcode">Hello {{ username }}, Only left 1 step!</label>
-            </div>
-            <div class="form-group">
-                <label for="password">Connect to your Google Authenticator</label>
-                <br>
-                <img src="{{ url_for('static', filename='qr.svg') }}" alt="QR Code">
-                
 
-            </div>
-
-            <div class="form-group">
-                <label for="qrcode">Enter your OTP code</label>
-                <input type="text" class="form-control" id="otp" name="otp" placeholder="OTP code" required>
-            </div>
-
-            <div class="text-center">
-                <button type="submit" class="btn btn-primary">Verify</button>
-            </div>
-            <br>
-            <div class="form-group">
-                <label for="reckey">Remember your recoveryKey!</label>
-                <label for="reckey">Key: {{ recoveryKey }}</label>
-            </div>
-        </form>
+            <form action="/changeAuthenticators" method="post">
+                <div class="form-group">
+                    <label for="qrcode">Enter your Recovery code</label>
+                    <input type="text" class="form-control" id="otp" name="otp" placeholder="Recovery code" required>
+                </div>
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary">Verify</button>
+                </div>
+            </form>
     </div>
 </body>
 </html>

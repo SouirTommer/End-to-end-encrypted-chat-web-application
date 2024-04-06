@@ -233,6 +233,62 @@ def register():
             error = 'Invalid reCAPTCHA. Please try again.'
     return render_template('register.html', error=error)
 
+@app.route('/changeAuthenticators', methods=['GET', 'POST'])
+def changeAuthenticators():
+    error = None
+    if 'username' not in session:
+        abort(403)
+        
+    username = session.get('username')
+    account = session.get('user_id')
+
+    if request.method == 'POST':
+        details = request.form
+        otp = details['otp']
+        print(f"input otp: {otp}")
+        
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT rec_key FROM users WHERE username=%s", (username,))
+        recoveryKeyHash = cur.fetchone()[0]
+        
+        cur.close()
+        
+        print(bcrypt.checkpw(otp.encode('utf-8'), recoveryKeyHash.encode('utf-8')))
+        
+        if recoveryKeyHash and bcrypt.checkpw(otp.encode('utf-8'), recoveryKeyHash.encode('utf-8')):
+            
+            return redirect(url_for('changeAuthenticators_showQR'))
+            
+        else:
+            error = 'Invalid code. Please try again.'
+            
+
+    return render_template('changeAuthenticators.html', error=error)
+
+@app.route('/changeAuthenticators_showQR', methods=['GET', 'POST'])
+def changeAuthenticators_showQR():
+    if 'username' not in session:
+        abort(403)
+        
+    username = session.get('username')
+    account = session.get('user_id')
+
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT sec_key FROM users WHERE username=%s", (username,))
+    secKey = cur.fetchone()[0]
+    cur.close()
+    
+    
+    url_qr = pyotp.totp.TOTP(secKey).provisioning_uri(name=username, issuer_name='ChatApp')
+    url = pyqrcode.create(url_qr)
+    url.svg('static/qr.svg', scale=6)
+
+    if request.method == 'POST':
+        session.clear()
+        return redirect(url_for('login'))
+            
+    return render_template('changeAuthenticators_showQR.html')
+
 @app.route('/connectTo2FA', methods=['GET', 'POST'])
 def connectTo2FA():
     error = None
