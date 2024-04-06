@@ -197,12 +197,6 @@ def register():
             
             
             hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-            
-
-            recoveryKey = str(random.randint(100000, 999999))
-            print(f"recoveryKey: {recoveryKey}")
-            
-            recoveryKeyHash = bcrypt.hashpw(recoveryKey.encode('utf-8'), bcrypt.gensalt())
 
             password_sha1 = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
             response = requests.get(f"https://api.pwnedpasswords.com/range/{password_sha1[:5]}")
@@ -225,11 +219,15 @@ def register():
                     error = 'User already exists. Please choose a different username.'
                 else:
                     otpKey = pyotp.random_base32()
-                    cur.execute("INSERT INTO users(username, password, sec_key, rec_key) VALUES(%s, %s, %s, %s)", (username, hashed, otpKey, recoveryKeyHash,))
-                    mysql.connection.commit()
-                    cur.close()
+                    
+                    recoveryKey = str(random.randint(100000, 999999))
+                    print(f"recoveryKey: {recoveryKey}")
+                    
                     session['regUser'] = username
-                    session['recKey'] = recoveryKey
+                    session['password'] = hashed
+                    session['otpKey'] = otpKey
+                    session['recoveryKey'] = recoveryKey
+                    
                     return redirect(url_for('connectTo2FA'))
         else:
             error = 'Invalid reCAPTCHA. Please try again.'
@@ -241,14 +239,13 @@ def connectTo2FA():
     if 'regUser' not in session:
         abort(403)
     username = session.get('regUser')
-    recoveryKey = session.get('recKey')
+    hashed = session.get('password')
+    otpKey = session.get('otpKey')
+    recoveryKey = session.get('recoveryKey')
+            
+    recoveryKeyHash = bcrypt.hashpw(recoveryKey.encode('utf-8'), bcrypt.gensalt())
 
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT sec_key FROM users WHERE username=%s", (username,))
-    secKey = cur.fetchone()[0]
-    cur.close()
-
-    url_qr = pyotp.totp.TOTP(secKey).provisioning_uri(name=username, issuer_name='ChatApp')
+    url_qr = pyotp.totp.TOTP(otpKey).provisioning_uri(name=username, issuer_name='ChatApp')
     url = pyqrcode.create(url_qr)
     url.svg('static/qr.svg', scale=6)
 
@@ -257,14 +254,29 @@ def connectTo2FA():
         otp = details['otp']
         print(f"input otp: {otp}")
         
-        if pyotp.TOTP(secKey).verify(otp):
+        if pyotp.TOTP(otpKey).verify(otp):
+            
+            
+            print(username)
+            print(hashed)
+            print(otpKey)
+            print(recoveryKeyHash)
+            cur = mysql.connection.cursor()
+            cur.execute("INSERT INTO users(username, password, sec_key, rec_key) VALUES(%s, %s, %s, %s)", (username, hashed, otpKey, recoveryKeyHash,))
+            mysql.connection.commit()
+            cur.close()
+            
             session.pop('regUser', None)
-            session.pop('recKey', None)
+            session.pop('password', None)
+            session.pop('otpKey', None)
+            session.pop('recoveryKey', None)
+            
             return redirect(url_for('login'))
+        
         else:
             error = 'Invalid OTP. Please try again.'
 
-    return render_template('connectTo2FA.html', error=error, username=username, secKey=str(secKey), recoveryKey=recoveryKey)
+    return render_template('connectTo2FA.html', error=error, username=username, secKey=str(otpKey), recoveryKey=recoveryKey)
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
