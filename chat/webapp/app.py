@@ -176,7 +176,8 @@ def register():
 
             recoveryKey = random.randint(100000, 999999)
             print(f"recoveryKey: {recoveryKey}")
-            recoveryKey = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            
+            recoveryKeyHash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
             password_sha1 = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
             response = requests.get(f"https://api.pwnedpasswords.com/range/{password_sha1[:5]}")
@@ -199,10 +200,11 @@ def register():
                     error = 'User already exists. Please choose a different username.'
                 else:
                     otpKey = pyotp.random_base32()
-                    cur.execute("INSERT INTO users(username, password, sec_key, rec_key) VALUES(%s, %s, %s, %s)", (username, hashed, otpKey, recoveryKey,))
+                    cur.execute("INSERT INTO users(username, password, sec_key, rec_key) VALUES(%s, %s, %s, %s)", (username, hashed, otpKey, recoveryKeyHash,))
                     mysql.connection.commit()
                     cur.close()
                     session['regUser'] = username
+                    session['recKey'] = recoveryKey
                     return redirect(url_for('connectTo2FA'))
         else:
             error = 'Invalid reCAPTCHA. Please try again.'
@@ -214,6 +216,7 @@ def connectTo2FA():
     if 'regUser' not in session:
         abort(403)
     username = session.get('regUser')
+    recoveryKey = session.get('recKey')
 
     cur = mysql.connection.cursor()
     cur.execute("SELECT sec_key FROM users WHERE username=%s", (username,))
@@ -228,11 +231,12 @@ def connectTo2FA():
         
         if pyotp.TOTP(secKey).verify(otp):
             session.pop('regUser', None)
+            session.pop('recKey', None)
             return redirect(url_for('login'))
         else:
             error = 'Invalid OTP. Please try again.'
 
-    return render_template('connectTo2FA.html', error=error, username=username, secKey=str(secKey))
+    return render_template('connectTo2FA.html', error=error, username=username, secKey=str(secKey), recoveryKey=recoveryKey)
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
