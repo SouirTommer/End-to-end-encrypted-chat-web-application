@@ -16,8 +16,5 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the current directory contents into the container at /usr/src/app
-# COPY . .
-
 # Run Gunicorn to serve the Flask app
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]

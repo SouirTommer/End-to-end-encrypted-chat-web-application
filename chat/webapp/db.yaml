@@ -1,7 +1,15 @@
-# mysql_host: 'db'  # Name of the MySQL service in Docker Compose
-mysql_host: 'localhost'  # Use this if you are running the app locally
-# mysql_user: 'chatuser'
-# mysql_password: 'chatpassword'
+
+
+#local
+mysql_host: 'localhost'
 mysql_user: 'root'
 mysql_password: 'root'
+
+# docker
+# mysql_host: 'db'  # Name of the MySQL service in Docker Compose
+# mysql_user: 'chatuser'
+# mysql_password: 'chatpassword'
+
+
+#
 mysql_db: 'chatdb'

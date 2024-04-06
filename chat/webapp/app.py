@@ -109,6 +109,7 @@ def fetch_messages():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
+    session.clear()
     if request.method == 'POST':
         secret_response = request.form['g-recaptcha-response']
         verify_response = requests.post(
