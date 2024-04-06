@@ -22,6 +22,7 @@ CREATE TABLE messages (
     receiver_id INT NOT NULL,
     message_text TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    public_key VARCHAR(255) NOT NULL,
     FOREIGN KEY (sender_id) REFERENCES users(user_id),
     FOREIGN KEY (receiver_id) REFERENCES users(user_id)
 );

@@ -63,49 +63,6 @@ GOOGLE_RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 # Initialize the Flask-Session
 Session(app)
 
-@app.route('/')
-def index():
-    if 'user_id' not in session or 'otp_status' not in session:
-        return redirect(url_for('login'))
-    sender_id = session['user_id']
-    return render_template('chat.html', sender_id=sender_id)
-
-@app.route('/users')
-def users():
-    if 'user_id' not in session:
-        abort(403)
-
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT user_id, username FROM users")
-    user_data = cur.fetchall()
-    cur.close()
-
-    filtered_users = [[user[0], user[1]] for user in user_data if user[0] != session['user_id']]
-    return {'users': filtered_users}
-
-@app.route('/fetch_messages')
-def fetch_messages():
-    if 'user_id' not in session:
-        abort(403)
-
-    last_message_id = request.args.get('last_message_id', 0, type=int)
-    peer_id = request.args.get('peer_id', type=int)
-    
-    cur = mysql.connection.cursor()
-    query = """SELECT message_id,sender_id,receiver_id,message_text FROM messages 
-               WHERE message_id > %s AND 
-               ((sender_id = %s AND receiver_id = %s) OR (sender_id = %s AND receiver_id = %s))
-               ORDER BY message_id ASC"""
-    cur.execute(query, (last_message_id, peer_id, session['user_id'], session['user_id'], peer_id))
-
-    # Fetch the column names
-    column_names = [desc[0] for desc in cur.description]
-    # Fetch all rows, and create a list of dictionaries, each representing a message
-    messages = [dict(zip(column_names, row)) for row in cur.fetchall()]
-
-    cur.close()
-    return jsonify({'messages': messages})
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -334,6 +291,51 @@ def connectTo2FA():
             error = 'Invalid OTP. Please try again.'
 
     return render_template('connectTo2FA.html', error=error, username=username, secKey=str(otpKey), recoveryKey=recoveryKey)
+
+# part2 ================================================================
+
+@app.route('/')
+def index():
+    if 'user_id' not in session or 'otp_status' not in session:
+        return redirect(url_for('login'))
+    sender_id = session['user_id']
+    return render_template('chat.html', sender_id=sender_id)
+
+@app.route('/users')
+def users():
+    if 'user_id' not in session:
+        abort(403)
+
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT user_id, username FROM users")
+    user_data = cur.fetchall()
+    cur.close()
+
+    filtered_users = [[user[0], user[1]] for user in user_data if user[0] != session['user_id']]
+    return {'users': filtered_users}
+
+@app.route('/fetch_messages')
+def fetch_messages():
+    if 'user_id' not in session:
+        abort(403)
+
+    last_message_id = request.args.get('last_message_id', 0, type=int)
+    peer_id = request.args.get('peer_id', type=int)
+    
+    cur = mysql.connection.cursor()
+    query = """SELECT message_id,sender_id,receiver_id,message_text FROM messages 
+               WHERE message_id > %s AND 
+               ((sender_id = %s AND receiver_id = %s) OR (sender_id = %s AND receiver_id = %s))
+               ORDER BY message_id ASC"""
+    cur.execute(query, (last_message_id, peer_id, session['user_id'], session['user_id'], peer_id))
+
+    # Fetch the column names
+    column_names = [desc[0] for desc in cur.description]
+    # Fetch all rows, and create a list of dictionaries, each representing a message
+    messages = [dict(zip(column_names, row)) for row in cur.fetchall()]
+
+    cur.close()
+    return jsonify({'messages': messages})
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
