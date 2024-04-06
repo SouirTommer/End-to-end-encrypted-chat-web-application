@@ -64,7 +64,7 @@ Session(app)
 
 @app.route('/')
 def index():
-    if 'user_id' not in session:
+    if 'user_id' not in session or 'otp_status' not in session:
         return redirect(url_for('login'))
     sender_id = session['user_id']
     return render_template('chat.html', sender_id=sender_id)
@@ -120,8 +120,12 @@ def login():
             
             cur = mysql.connection.cursor()
             cur.execute("SELECT password FROM users WHERE username=%s", (username,))
+            sqlpw = cur.fetchone()
+            
+            cur.execute("SELECT user_id FROM users WHERE username=%s", (username,))
             account = cur.fetchone()
-            if account and bcrypt.checkpw(password.encode('utf-8'), account[0].encode('utf-8')):
+            
+            if sqlpw and bcrypt.checkpw(password.encode('utf-8'), sqlpw[0].encode('utf-8')):
                 session['username'] = username
                 session['user_id'] = account[0]
                 return redirect(url_for('login2FA'))
@@ -137,6 +141,8 @@ def login2FA():
     if 'username' not in session:
         abort(403)
     username = session.get('username')
+    account = session.get('user_id')
+    session.pop('otp_status', None)
 
     cur = mysql.connection.cursor()
     cur.execute("SELECT sec_key FROM users WHERE username=%s", (username,))
@@ -150,11 +156,27 @@ def login2FA():
         print(f"input otp: {otp}")
         
         if pyotp.TOTP(secKey).verify(otp):
+            session['otp_status'] = 'verified'
             return redirect(url_for('index'))
         else:
-            error = 'Invalid OTP. Please try again.'
+            cur = mysql.connection.cursor()
+            cur.execute("SELECT rec_key FROM users WHERE username=%s", (username,))
+            recoveryKeyHash = cur.fetchone()[0]
+            
+            cur.close()
+            
+            print(bcrypt.checkpw(otp.encode('utf-8'), recoveryKeyHash.encode('utf-8')))
+            
+            if recoveryKeyHash and bcrypt.checkpw(otp.encode('utf-8'), recoveryKeyHash.encode('utf-8')):
 
-    return render_template('login2FA.html', error=error, username=username)
+                session['otp_status'] = 'verified'
+                return redirect(url_for('index'))
+            else:
+                error = 'Invalid code. Please try again.'
+            
+        error = 'Invalid code. Please try again.'
+
+    return render_template('login2FA.html', error=error, username=username, account=account)
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -171,13 +193,15 @@ def register():
             userDetails = request.form
             username = userDetails['username']
             password = userDetails['password']
+            
+            
             hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
             
 
-            recoveryKey = random.randint(100000, 999999)
+            recoveryKey = str(random.randint(100000, 999999))
             print(f"recoveryKey: {recoveryKey}")
             
-            recoveryKeyHash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            recoveryKeyHash = bcrypt.hashpw(recoveryKey.encode('utf-8'), bcrypt.gensalt())
 
             password_sha1 = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
             response = requests.get(f"https://api.pwnedpasswords.com/range/{password_sha1[:5]}")
@@ -242,7 +266,7 @@ def connectTo2FA():
 def send_message():
     if not request.json or not 'message_text' in request.json:
         abort(400)  # Bad request if the request doesn't contain JSON or lacks 'message_text'
-    if 'user_id' not in session:
+    if 'user_id' not in session or 'otp_status' not in session:
         abort(403)
 
     # Extract data from the request
@@ -263,7 +287,7 @@ def save_message(sender, receiver, message):
 
 @app.route('/erase_chat', methods=['POST'])
 def erase_chat():
-    if 'user_id' not in session:
+    if 'user_id' not in session or 'otp_status' not in session:
         abort(403)
 
     peer_id = request.json['peer_id']

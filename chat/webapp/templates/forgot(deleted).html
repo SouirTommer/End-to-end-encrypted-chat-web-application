@@ -21,15 +21,15 @@
             {% endfor %}
           {% endif %}
         {% endwith %}
-        <h2 class="text-center">Please verify the OTP</h2>
+        <h2 class="text-center">Please verify the recovery code</h2>
         {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
-        <form action="/login2FA" method="post">
+        <form action="/forgot" method="post">
 
             <div class="form-group">
-                <label for="qrcode">Enter your OTP code or recovery key</label>
-                <input type="text" class="form-control" id="otp" name="otp" placeholder="code" required>
+                <label for="qrcode">Enter your recovery code</label>
+                <input type="text" class="form-control" id="rec" name="rec" placeholder="recovery code" required>
             </div>
 
             <div class="text-center">
