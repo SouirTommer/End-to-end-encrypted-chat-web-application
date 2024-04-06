@@ -36,6 +36,7 @@ import bcrypt
 import hashlib
 import pyotp
 import random
+import pyqrcode
 
 app = Flask(__name__)
 
@@ -247,6 +248,9 @@ def connectTo2FA():
     secKey = cur.fetchone()[0]
     cur.close()
 
+    url_qr = pyotp.totp.TOTP(secKey).provisioning_uri(name=username, issuer_name='ChatApp')
+    url = pyqrcode.create(url_qr)
+    url.svg('static/qr.svg', scale=6)
 
     if request.method == 'POST':
         details = request.form

@@ -33,7 +33,8 @@
             <div class="form-group">
                 <label for="password">Connect to your Google Authenticator</label>
                 <br>
-                <label for="qrcode">Key: {{ secKey }}</label>
+                <img src="{{ url_for('static', filename='qr.svg') }}" alt="QR Code">
+                
 
             </div>
 
