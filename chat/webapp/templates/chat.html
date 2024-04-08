@@ -134,80 +134,158 @@ function deriveSecretKey(privateKey, publicKey) {
   }
 
 
-    async function exchangeECDHkey() {
-        const response = await fetch('/current_user');
-        const currentUser = await response.json();
+async function exchangeECDHkey() {
+    const response = await fetch('/current_user');
+    const currentUser = await response.json();
 
-        const { username } = currentUser;
+    const { username } = currentUser;
 
-        console.log('Selected user:', userInfo[peer_id]);
-        console.log('Current user:', username);
+    console.log('Selected user:', userInfo[peer_id]);
+    console.log('Current user:', username);
 
-        // Load the private key from local storage
+    // Load the private key from local storage
 
-        var storedData = JSON.parse(localStorage.getItem(username));
-        var privateKeyJwk = storedData.privatekey;
+    var storedData = JSON.parse(localStorage.getItem(username));
+    var privateKeyJwk = storedData.privatekey;
 
-        const privateKey = await window.crypto.subtle.importKey(
-            'jwk',
-            privateKeyJwk,
-            { name: 'ECDH', namedCurve: 'P-384' },
-            true,
-            ['deriveKey']
-        );
+    const privateKey = await window.crypto.subtle.importKey(
+        'jwk',
+        privateKeyJwk,
+        { name: 'ECDH', namedCurve: 'P-384' },
+        true,
+        ['deriveKey']
+    );
 
-        // Use the imported private key as needed
-        console.log("Current user private key:", privateKey); 
-        
+    // Use the imported private key as needed
+    console.log("Current user private key:", privateKey); 
+    
 
-        // Fetch the public key of the selected user
-        const response_public = await fetch('/get_ecdh_public_key', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ username: userInfo[peer_id] })
-        });
-        const data = await response_public.json();
+    // Fetch the public key of the selected user
+    const response_public = await fetch('/get_ecdh_public_key', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username: userInfo[peer_id] })
+    });
+    const data = await response_public.json();
 
-        const publicKey = await window.crypto.subtle.importKey(
-            'jwk',
-            data.public_key,
-            { name: 'ECDH', namedCurve: 'P-384' },
-            true,
-            []
-        );
-        
-        console.log('Selected user Public key:', publicKey);
+    const publicKey = await window.crypto.subtle.importKey(
+        'jwk',
+        data.public_key,
+        { name: 'ECDH', namedCurve: 'P-384' },
+        true,
+        []
+    );
+    
+    console.log('Selected user Public key:', publicKey);
 
-        // Derive the shared secret key
-        const secretKey = await deriveSecretKey(privateKey, publicKey);
-        console.log('Derived secret key:', secretKey);
+    // Derive the shared secret key
+    const secretKey = await deriveSecretKey(privateKey, publicKey);
+    console.log('Derived secret key:', secretKey);
 
-        
+    return secretKey;
 
-        
-        
-        
-
-        
-
-        
-    }
+    
+}
 
 
+async function deriveHKDFKeys(sharedSecret, salt, info1, info2, info3, info4) {
 
+    const encoder = new TextEncoder();
+    const sharedSecretBuffer = encoder.encode(sharedSecret);
+    
+    const sharedSecretKey = await window.crypto.subtle.importKey(
+        'raw', 
+        sharedSecretBuffer, 
+        { name: 'HKDF' }, 
+        false, 
+        ['deriveKey']
+    );
+
+    const encryptionKey1 = await window.crypto.subtle.deriveKey(
+        {
+            name: 'HKDF',
+            salt: salt,
+            hash: 'SHA-256',
+            info: new TextEncoder().encode(info1),
+        },
+        sharedSecretKey,
+        { name: 'AES-GCM', length: 256 },
+        true,
+        ['encrypt', 'decrypt']
+    );
+
+    const encryptionKey2 = await window.crypto.subtle.deriveKey(
+        {
+            name: 'HKDF',
+            salt: salt,
+            hash: 'SHA-256',
+            info: new TextEncoder().encode(info2),
+        },
+        sharedSecretKey,
+        { name: 'AES-GCM', length: 256 },
+        true,
+        ['encrypt', 'decrypt']
+    );
+
+    const macKey1 = await window.crypto.subtle.deriveKey(
+        {
+            name: 'HKDF',
+            hash: 'SHA-256',
+            salt: salt,
+            info: new TextEncoder().encode(info3),
+        },
+        sharedSecretKey,
+        { name: 'HMAC', length: 256, hash: 'SHA-256' },
+        true,
+        ['sign', 'verify']
+    );
+    const macKey2 = await window.crypto.subtle.deriveKey(
+        {
+            name: 'HKDF',
+            hash: 'SHA-256',
+            salt: salt,
+            info: new TextEncoder().encode(info4),
+        },
+        sharedSecretKey,
+        { name: 'HMAC', length: 256, hash: 'SHA-256' },
+        true,
+        ['sign', 'verify']
+    );
+
+    return { encryptionKey1, encryptionKey2, macKey1, macKey2};
+}
+
+let counter = 1;
 // Handle user selection change
-document.getElementById('userList').addEventListener('change', event => {
+document.getElementById('userList').addEventListener('change', async event => {
     peer_id = parseInt(event.target.value, 10); // Convert selected peer_id to integer
     clearChatBox();
     lastMessageId = 0;
 
-    exchangeECDHkey();
 
+    const secretKey = await exchangeECDHkey();
+    const salt = new TextEncoder().encode(counter.toString());
+    const info1 = "CHAT_KEY_USER1to2";
+    const info2 = "CHAT_KEY_USER2to1";
+    const info3 = "MAC_KEY_USER1to2";
+    const info4 = "MAC_KEY_USER2to1";
+
+    const keys = await deriveHKDFKeys(secretKey, salt, info1, info2, info3, info4);
+    counter ++;
+
+    console.log('256-bit AES-GCM encryption keys:');
+    console.log('Encryption key 1to2:', keys.encryptionKey1);
+    console.log('Encryption key 2to1:', keys.encryptionKey2);
+    console.log('256-bit MAC keys:');
+    console.log('MAC key 1to2:', keys.macKey1);
+    console.log('MAC key 2to1:', keys.macKey2);
 
     fetchMessages(); // Fetch messages for the new selection
 });
+
+
 
 // Clear chat box
 function clearChatBox() {
