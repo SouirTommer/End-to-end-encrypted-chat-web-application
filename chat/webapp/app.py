@@ -95,6 +95,8 @@ def login():
             error = 'Invalid reCAPTCHA. Please try again.'
     return render_template('login.html', error=error, site_key=GOOGLE_RECAPTCHA_SITE_KEY)
 
+
+
 @app.route('/login2FA', methods=['GET', 'POST'])
 def login2FA():
     error = None
@@ -342,6 +344,30 @@ def users():
 
     filtered_users = [[user[0], user[1]] for user in user_data if user[0] != session['user_id']]
     return {'users': filtered_users}
+
+@app.route('/current_user')
+def current_user():
+    if 'user_id' not in session:
+        abort(403)
+    return {'user_id': session['user_id'], 'username': session['username']}
+
+# get ECDH public key by username
+@app.route('/get_ecdh_public_key', methods=['POST'])
+def get_ecdh_public_key():
+    data = request.get_json()
+    username = data['username']
+    try:
+        with open('static/ecdh_public_key.json', 'r') as f:
+            ecdh_public_keys = json.load(f)
+    except FileNotFoundError:
+        print("file not found")
+        ecdh_public_keys = {}
+    except json.JSONDecodeError:
+        print("json decode error")
+        ecdh_public_keys = {}
+
+    public_key = ecdh_public_keys.get(username, None)
+    return {'public_key': public_key}
 
 @app.route('/fetch_messages')
 def fetch_messages():
