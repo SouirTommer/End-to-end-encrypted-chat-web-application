@@ -37,6 +37,7 @@ import hashlib
 import pyotp
 import random
 import pyqrcode
+import json
 
 app = Flask(__name__)
 
@@ -247,9 +248,29 @@ def changeAuthenticators_showQR():
             
     return render_template('changeAuthenticators_showQR.html')
 
+@app.route('/store_ecdh_public_key', methods=['POST'])
+def store_ecdh_public_key():
+    data = request.get_json()
+    username = data['username']
+    public_key = data['publickey']
+    try:
+        with open('static/ecdh_public_key.json', 'r') as f:
+            ecdh_public_keys = json.load(f)
+    except FileNotFoundError:
+        ecdh_public_keys = {}
+
+    ecdh_public_keys[username] = public_key
+
+    # Save the keys back to the file
+    with open('static/ecdh_public_key.json', 'w') as f:
+        json.dump(ecdh_public_keys, f)
+
+    return '', 204
+
 @app.route('/connectTo2FA', methods=['GET', 'POST'])
 def connectTo2FA():
     error = None
+    
     if 'regUser' not in session:
         abort(403)
     username = session.get('regUser')
@@ -269,8 +290,7 @@ def connectTo2FA():
         print(f"input otp: {otp}")
         
         if pyotp.TOTP(otpKey).verify(otp):
-            
-            
+                    
             print(username)
             print(hashed)
             print(otpKey)
@@ -279,6 +299,8 @@ def connectTo2FA():
             cur.execute("INSERT INTO users(username, password, sec_key, rec_key) VALUES(%s, %s, %s, %s)", (username, hashed, otpKey, recoveryKeyHash,))
             mysql.connection.commit()
             cur.close()
+            
+            
             
             session.pop('regUser', None)
             session.pop('password', None)

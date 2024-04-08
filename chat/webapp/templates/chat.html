@@ -58,33 +58,33 @@ document.addEventListener('DOMContentLoaded', function() {
 // Send message function
 function sendMessage() {
     if (peer_id == -1) return; // Exit if no peer selected
-    const message = document.getElementById('messageInput').value;
-    const payload = {
-        receiver_id: peer_id,
-        message_text: message,
-    };
+        const message = document.getElementById('messageInput').value;
+        const payload = {
+            receiver_id: peer_id,
+            message_text: message,
+        };
 
-    fetch('/send_message', {
-        method: 'POST', // Specify the method
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-    })
-    .then(response => {
-        if (!response.ok) {
-            // If the server response is not OK, throw an error
-            throw new Error('Network response was not ok');
-        }
-        return response.json(); // Parse JSON response from the server
-    })
-    .then(data => {
-        console.log('Message sent:', data); // Log success message
-        document.getElementById('messageInput').value = ''; // Clear the input after sending
-    })
-    .catch(error => {
-        console.error('Error sending message:', error); // Log any errors
-    });
+        fetch('/send_message', {
+            method: 'POST', // Specify the method
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(response => {
+            if (!response.ok) {
+                // If the server response is not OK, throw an error
+                throw new Error('Network response was not ok');
+            }
+            return response.json(); // Parse JSON response from the server
+        })
+        .then(data => {
+            console.log('Message sent:', data); // Log success message
+            document.getElementById('messageInput').value = ''; // Clear the input after sending
+        })
+        .catch(error => {
+            console.error('Error sending message:', error); // Log any errors
+        });
 }
 
 // Refresh Keys function placeholder

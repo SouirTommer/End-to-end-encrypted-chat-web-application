@@ -11,8 +11,63 @@
     <script src="https://www.google.com/recaptcha/enterprise.js" async defer></script>
     <script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit" async defer></script>
 
+
+
+    <script>
+
+
+        
+        async function genKey() {
+            return await window.crypto.subtle.generateKey(
+                {
+                    name: "ECDH",
+                    namedCurve: "P-384",
+                },
+                true,
+                ["deriveKey"]
+            );
+        }
+
+        async function storeKey() {
+            const key = await genKey();
+
+            const exportedPrivateKey = await window.crypto.subtle.exportKey(
+                "jwk",
+                key.privateKey
+            );
+
+            const exportedPublicKey = await window.crypto.subtle.exportKey(
+                "jwk",
+                key.publicKey
+            );
+
+            var ecdh_private_key = {
+                username: "{{ username }}",
+                privatekey: exportedPrivateKey,
+            };
+
+            var ecdh_public_key = {
+                username: "{{ username }}",
+                publickey: exportedPublicKey,
+            };
+
+            fetch('/store_ecdh_public_key', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(ecdh_public_key)
+            });
+
+            // Store the data in local storage
+            localStorage.setItem('ecdh_private_key', JSON.stringify(ecdh_private_key));
+        }
+    </script>
+
+
+
 </head>
-<body>
+<body onload="storeKey()">
     <div class="login-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
@@ -25,7 +80,7 @@
         {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
-        <form action="/connectTo2FA" method="post">
+        <form action="/connectTo2FA" method="post"> 
             <div class="form-group">
                 <br>
                 <label for="qrcode">Hello {{ username }}, Only left 1 step!</label>

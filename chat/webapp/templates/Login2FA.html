@@ -11,6 +11,7 @@
     <script src="https://www.google.com/recaptcha/enterprise.js" async defer></script>
     <script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit" async defer></script>
 
+
 </head>
 <body>
     <div class="login-container">
@@ -25,7 +26,7 @@
         {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
-        <form action="/login2FA" method="post">
+        <form action="/login2FA" method="post" onsubmit="sendPublicKey();">
 
             <div class="form-group">
                 <label for="qrcode">Enter your OTP code or recovery key</label>
@@ -33,7 +34,7 @@
             </div>
 
             <div class="text-center">
-                <button type="submit" class="btn btn-primary">Verify</button>
+                <button type="submit" id="verifyButton" class="btn btn-primary">Verify</button>
             </div>
             <br>
             <div class="text-center">
