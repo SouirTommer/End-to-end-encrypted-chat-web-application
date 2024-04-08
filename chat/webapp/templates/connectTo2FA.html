@@ -42,7 +42,6 @@
             );
 
             var ecdh_private_key = {
-                username: "{{ username }}",
                 privatekey: exportedPrivateKey,
             };
 
@@ -51,6 +50,7 @@
                 publickey: exportedPublicKey,
             };
 
+                    // Send the public key to the server
             fetch('/store_ecdh_public_key', {
                 method: 'POST',
                 headers: {
@@ -60,7 +60,7 @@
             });
 
             // Store the data in local storage
-            localStorage.setItem('ecdh_private_key', JSON.stringify(ecdh_private_key));
+            localStorage.setItem('{{ username }}', JSON.stringify(ecdh_private_key));
         }
     </script>
 

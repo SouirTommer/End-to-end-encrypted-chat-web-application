@@ -257,9 +257,16 @@ def store_ecdh_public_key():
         with open('static/ecdh_public_key.json', 'r') as f:
             ecdh_public_keys = json.load(f)
     except FileNotFoundError:
+        print("file not found")
+        ecdh_public_keys = {}
+    except json.JSONDecodeError:
+        print("json decode error")
         ecdh_public_keys = {}
 
     ecdh_public_keys[username] = public_key
+    
+    # print
+    print(f"ecdh_public_keys: {ecdh_public_keys}")
 
     # Save the keys back to the file
     with open('static/ecdh_public_key.json', 'w') as f:
