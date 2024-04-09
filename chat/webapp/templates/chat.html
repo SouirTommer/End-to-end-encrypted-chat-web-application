@@ -45,7 +45,7 @@ let lastMessageId = 0;
 let peer_id = -1;
 const myID = {{ sender_id }};
 let userInfo = {};
-let lastIvCounter = null;
+let previousIv = null;
 
 // Ctrl+Enter to send message
 document.addEventListener('DOMContentLoaded', function() {
@@ -56,12 +56,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function verifyIvCounter(ivCounter) {
-    if (lastIvCounter !== null && ivCounter <= lastIvCounter) {
-        throw new Error('IV counter must be greater than the previous one to prevent replay attacks');
-    }
-    lastIvCounter = ivCounter;
-}
 
 function getAndIncrementIvCounter() {
     let ivCounter = parseInt(localStorage.getItem('ivCounter'), 10) || 0;
@@ -83,7 +77,6 @@ async function AESencrypt(message, aesKey, macKey) {
 
     const associatedData = 'CHAT_MSG_USER' + myID + "to" + peer_id;
     let ivCounter = getAndIncrementIvCounter();
-    verifyIvCounter(ivCounter);
     const initializationVector = createIv(ivCounter);
 
     aesKey = await window.crypto.subtle.importKey(
@@ -132,6 +125,11 @@ async function AESencrypt(message, aesKey, macKey) {
         };
         console.log('Encrypted message: (hex)', (messageData));
 
+
+        const testaesKey = localStorage.getItem('aesKey'+ myID + 'to' + peer_id);
+        const testmacKey = localStorage.getItem('macKey'+ myID + 'to' + peer_id);
+        
+        console.log(await AESdecrypt(messageData, testaesKey, testmacKey, myID, peer_id));
         return messageData;
 
     } catch (error) {
@@ -148,6 +146,13 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
     ciphertext = hexToArrayBuffer(data.ciphertext);
     iv = hexToArrayBuffer(data.iv);
     hmac = hexToArrayBuffer(data.hmac);
+
+    const ivString = String.fromCharCode.apply(null, new Uint8Array(iv));
+
+    if (previousIv !== null && ivString <= previousIv) {
+        throw new Error('Replay attack detected!');
+    }
+    previousIv = ivString;
 
 
     const jwkaesKey = await window.crypto.subtle.importKey(
@@ -523,15 +528,16 @@ async function displayMessage(message) {
 
     // Set the message text
     const messageText = JSON.parse(message.message_text.replace(/'/g, '"'));
-    console.log('Message text:', messageText);
+    console.log('Get Message text from db:', messageText);
 
     const aesKey = localStorage.getItem('aesKey'+ message.sender_id + 'to' + message.receiver_id);
     const macKey = localStorage.getItem('macKey'+ message.sender_id + 'to' + message.receiver_id);
 
-    const decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
+    //const decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
     
 
-    messageElement.textContent = `From ${sender} to ${receiver}: ${decryptedMessage}`;
+    messageElement.textContent = `From ${sender} to ${receiver}: ${message.message_text}`;
+    //messageElement.textContent = `From ${sender} to ${receiver}: ${decryptedMessage}`;
     messagesContainer.appendChild(messageElement);
 }
 
