@@ -45,6 +45,7 @@ let lastMessageId = 0;
 let peer_id = -1;
 const myID = {{ sender_id }};
 let userInfo = {};
+let lastIvCounter = null;
 
 // Ctrl+Enter to send message
 document.addEventListener('DOMContentLoaded', function() {
@@ -74,7 +75,9 @@ function createIv(ivCounter) {
     return iv;
 }
 
-
+function bufferToHex(buffer) {
+    return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
+}
 
 async function AESencrypt(message, aesKey, macKey) {
 
@@ -82,6 +85,22 @@ async function AESencrypt(message, aesKey, macKey) {
     let ivCounter = getAndIncrementIvCounter();
     verifyIvCounter(ivCounter);
     const initializationVector = createIv(ivCounter);
+
+    aesKey = await window.crypto.subtle.importKey(
+        'jwk',
+        JSON.parse(aesKey),
+        { name: 'AES-GCM', length: 256 },
+        true,
+        ['encrypt', 'decrypt']
+    );
+
+    macKey = await window.crypto.subtle.importKey(
+        'jwk',
+        JSON.parse(macKey),
+        { name: 'HMAC', length: 256, hash: { name: 'SHA-256' } },
+        true,
+        ['sign', 'verify']
+    );
 
     try {
         const encoder = new TextEncoder();
@@ -103,39 +122,47 @@ async function AESencrypt(message, aesKey, macKey) {
                 hash: 'SHA-256',
             },
             macKey,
-            ciphertext,
+            initializationVector,
         );
             
         const messageData = {
-            iv: initializationVector,
-            ciphertext: Array.from(new Uint8Array(ciphertext)),
-            hmac: Array.from(new Uint8Array(hmac)),
+            iv: bufferToHex(initializationVector),
+            ciphertext: bufferToHex(ciphertext),
+            hmac: bufferToHex(hmac),
         };
-        console.log('Encrypted message:', messageData);
+        console.log('Encrypted message: (hex)', messageData);
+
+        return messageData;
 
     } catch (error) {
         console.error('cannot encrypt ', error);
     }
 }
 
+
 // Send message function
-function sendMessage() {
+async function sendMessage() {
     if (peer_id == -1) return; // Exit if no peer selected
 
         const message = document.getElementById('messageInput').value;
 
+        const aesKey = localStorage.getItem('aesKey1to2');
+        const macKey = localStorage.getItem('macKey1to2');
 
 
-        const aesKey = localStorage.getItem('aesKey');
-        const macKey = localStorage.getItem('macKey');
         if (!aesKey || !macKey) {
             throw new Error('Keys not found in Local Storage');
         }
-        AESencrypt(message, aesKey, macKey)
+        messageData = await AESencrypt(message, aesKey, macKey)
+
         
         const payload = {
             receiver_id: peer_id,
-            message_text: message,
+            message_text: {
+                ciphertext: messageData.ciphertext,
+                iv: messageData.iv,
+                hmac: messageData.hmac,
+            },
         };
 
         fetch('/send_message', {
@@ -177,6 +204,10 @@ function populateUsers(users) {
     });
 }
 
+async function saveKeyToLocalStorage(keyname, secretKey) {
+    const jwk = await window.crypto.subtle.exportKey('jwk', secretKey);
+    localStorage.setItem(keyname, JSON.stringify(jwk));
+}
 
 // Fetch users from server
 $(document).ready(function() {
@@ -277,6 +308,8 @@ async function exchangeECDHkey() {
     const secretKey = await deriveSecretKey(privateKey, selpublicKey);
     //console.log('Derived secret key: (jwk)', secretKey);
 
+    saveKeyToLocalStorage("secretKey", secretKey);
+
     console.log("Derived secret key: (hex)", await exportKeyToHex(secretKey));
     
 
@@ -374,6 +407,13 @@ document.getElementById('userList').addEventListener('change', async event => {
     aesKey2to1 = keys.encryptionKey2;
     macKey1to2 = keys.macKey1;
     macKey2to1 = keys.macKey2;
+
+
+    saveKeyToLocalStorage("aesKey1to2", aesKey1to2);
+    saveKeyToLocalStorage("aesKey2to1", aesKey2to1);
+    saveKeyToLocalStorage("macKey1to2", macKey1to2);
+    saveKeyToLocalStorage("macKey2to1", macKey2to1);
+
 
     console.log('256-bit AES-GCM encryption keys:');
     console.log('Encryption key 1to2: (hex)', await exportKeyToHex(keys.encryptionKey1));
