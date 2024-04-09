@@ -81,7 +81,6 @@ function bufferToHex(buffer) {
 
 async function AESencrypt(message, aesKey, macKey) {
 
-    
     const associatedData = 'CHAT_MSG_USER' + myID + "to" + peer_id;
     let ivCounter = getAndIncrementIvCounter();
     verifyIvCounter(ivCounter);
@@ -144,7 +143,7 @@ function hexToArrayBuffer(hex) {
     return new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16))).buffer;
 }
 
-async function AESdecrypt(data, aesKey, macKey) {
+async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
     
     ciphertext = hexToArrayBuffer(data.ciphertext);
     iv = hexToArrayBuffer(data.iv);
@@ -178,12 +177,12 @@ async function AESdecrypt(data, aesKey, macKey) {
     );
 
     if (!isValidHmac) {
-        throw new Error('HMAC validation failed');
+        throw new Error('HMAC validation failed =(');
     }
     
     // Decrypt
     
-    const associatedData = 'CHAT_MSG_USER' + myID + "to" + peer_id;
+    const associatedData = 'CHAT_MSG_USER' + sender_id + "to" + receiver_id;
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
@@ -224,8 +223,6 @@ async function sendMessage() {
         }
         messageData = await AESencrypt(message, aesKey, macKey)
 
-        //
-        plaintext = await AESdecrypt(messageData, aesKey, macKey);
 
         
         const payload = {
@@ -478,7 +475,6 @@ document.getElementById('userList').addEventListener('change', async event => {
     macKey1to2 = keys.macKey1;
     macKey2to1 = keys.macKey2;
 
-
     saveKeyToLocalStorage("aesKey"+ myID + "to" + peer_id, aesKey1to2);
     saveKeyToLocalStorage("aesKey"+ peer_id + "to" + myID, aesKey2to1);
     saveKeyToLocalStorage("macKey"+ myID + "to" + peer_id, macKey1to2);
@@ -517,7 +513,7 @@ function fetchMessages() {
 }
 
 // Display a single message
-function displayMessage(message) {
+async function displayMessage(message) {
     const messagesContainer = document.getElementById('messages');
     const messageElement = document.createElement('div');
 
@@ -525,7 +521,17 @@ function displayMessage(message) {
     const sender = message.sender_id == myID ? "me" : (userInfo[message.sender_id] || `User ${message.sender_id}`);
     const receiver = message.receiver_id == myID ? "me" : (userInfo[message.receiver_id] || `User ${message.receiver_id}`);
 
-    messageElement.textContent = `From ${sender} to ${receiver}: ${message.message_text}`;
+    // Set the message text
+    const messageText = JSON.parse(message.message_text.replace(/'/g, '"'));
+    console.log('Message text:', messageText);
+
+    const aesKey = localStorage.getItem('aesKey'+ message.sender_id + 'to' + message.receiver_id);
+    const macKey = localStorage.getItem('macKey'+ message.sender_id + 'to' + message.receiver_id);
+
+    const decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
+    
+
+    messageElement.textContent = `From ${sender} to ${receiver}: ${decryptedMessage}`;
     messagesContainer.appendChild(messageElement);
 }
 
