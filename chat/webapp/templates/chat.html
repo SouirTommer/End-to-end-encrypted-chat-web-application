@@ -91,6 +91,7 @@ function sendMessage() {
 function refreshKeys() {
     console.log('Refresh keys functionality will be implemented here.');
     // Placeholder for refresh functionality
+    counter ++;
 }
 
 // Populate users function
@@ -128,11 +129,41 @@ function deriveSecretKey(privateKey, publicKey) {
         name: "AES-GCM",
         length: 256,
       },
-      false,
+      true,
       ["encrypt", "decrypt"],
     );
   }
 
+
+
+async function fetchPublicKey(username) {
+    // Fetch the public key of the selected user
+    const response_public = await fetch('/get_ecdh_public_key', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username: username })
+    });
+    const data = await response_public.json();
+
+    const publicKey = await window.crypto.subtle.importKey(
+        'jwk',
+        data.public_key,
+        { name: 'ECDH', namedCurve: 'P-384' },
+        true,
+        []
+    );
+
+    return publicKey;
+}
+
+async function exportKeyToHex(key) {
+    const rawKey = await window.crypto.subtle.exportKey('raw', key);
+    const rawKeyBytes = new Uint8Array(rawKey);
+    const rawKeyHex = Array.from(rawKeyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    return rawKeyHex;
+}
 
 async function exchangeECDHkey() {
     const response = await fetch('/current_user');
@@ -157,32 +188,24 @@ async function exchangeECDHkey() {
     );
 
     // Use the imported private key as needed
-    console.log("Current user private key:", privateKey); 
+    console.log("Current user private key: (jwk)", privateKey); 
     
+    const mypublicKey = await fetchPublicKey(username);
+    const selpublicKey = await fetchPublicKey(userInfo[peer_id]);
 
-    // Fetch the public key of the selected user
-    const response_public = await fetch('/get_ecdh_public_key', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username: userInfo[peer_id] })
-    });
-    const data = await response_public.json();
+    console.log('my Public key: (jwk)', mypublicKey);
+    console.log("my Public key: (hex)", await exportKeyToHex(mypublicKey));
+    console.log('Selected user Public key: (jwk)', selpublicKey);
+    console.log("Selected user Public key: (hex)", await exportKeyToHex(selpublicKey));
 
-    const publicKey = await window.crypto.subtle.importKey(
-        'jwk',
-        data.public_key,
-        { name: 'ECDH', namedCurve: 'P-384' },
-        true,
-        []
-    );
-    
-    console.log('Selected user Public key:', publicKey);
 
     // Derive the shared secret key
-    const secretKey = await deriveSecretKey(privateKey, publicKey);
-    console.log('Derived secret key:', secretKey);
+    const secretKey = await deriveSecretKey(privateKey, selpublicKey);
+    console.log('Derived secret key: (jwk)', secretKey);
+
+    console.log("Derived secret key: (hex)", await exportKeyToHex(secretKey));
+    
+
 
     return secretKey;
 
@@ -273,7 +296,6 @@ document.getElementById('userList').addEventListener('change', async event => {
     const info4 = "MAC_KEY_USER2to1";
 
     const keys = await deriveHKDFKeys(secretKey, salt, info1, info2, info3, info4);
-    counter ++;
 
     console.log('256-bit AES-GCM encryption keys:');
     console.log('Encryption key 1to2:', keys.encryptionKey1);

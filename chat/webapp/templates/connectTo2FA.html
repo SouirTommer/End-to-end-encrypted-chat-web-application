@@ -67,7 +67,7 @@
 
 
 </head>
-<body onload="storeKey()">
+<body>
     <div class="login-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
@@ -80,7 +80,7 @@
         {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
-        <form action="/connectTo2FA" method="post"> 
+        <form action="/connectTo2FA" method="post" onsubmit="storeKey()"> 
             <div class="form-group">
                 <br>
                 <label for="qrcode">Hello {{ username }}, Only left 1 step!</label>
