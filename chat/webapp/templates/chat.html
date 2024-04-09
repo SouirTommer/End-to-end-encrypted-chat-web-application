@@ -193,15 +193,15 @@ async function exchangeECDHkey() {
     const mypublicKey = await fetchPublicKey(username);
     const selpublicKey = await fetchPublicKey(userInfo[peer_id]);
 
-    console.log('my Public key: (jwk)', mypublicKey);
+    //console.log('my Public key: (jwk)', mypublicKey);
     console.log("my Public key: (hex)", await exportKeyToHex(mypublicKey));
-    console.log('Selected user Public key: (jwk)', selpublicKey);
+    //console.log('Selected user Public key: (jwk)', selpublicKey);
     console.log("Selected user Public key: (hex)", await exportKeyToHex(selpublicKey));
 
 
     // Derive the shared secret key
     const secretKey = await deriveSecretKey(privateKey, selpublicKey);
-    console.log('Derived secret key: (jwk)', secretKey);
+    //console.log('Derived secret key: (jwk)', secretKey);
 
     console.log("Derived secret key: (hex)", await exportKeyToHex(secretKey));
     
@@ -298,11 +298,11 @@ document.getElementById('userList').addEventListener('change', async event => {
     const keys = await deriveHKDFKeys(secretKey, salt, info1, info2, info3, info4);
 
     console.log('256-bit AES-GCM encryption keys:');
-    console.log('Encryption key 1to2:', keys.encryptionKey1);
-    console.log('Encryption key 2to1:', keys.encryptionKey2);
-    console.log('256-bit MAC keys:');
-    console.log('MAC key 1to2:', keys.macKey1);
-    console.log('MAC key 2to1:', keys.macKey2);
+    console.log('Encryption key 1to2: (hex)', await exportKeyToHex(keys.encryptionKey1));
+    console.log('Encryption key 2to1: (hex)', await exportKeyToHex(keys.encryptionKey2));
+    console.log('256-bit MAC keys: (hex)');
+    console.log('MAC key 1to2: (hex)', await exportKeyToHex(keys.macKey1));
+    console.log('MAC key 2to1: (hex)', await exportKeyToHex(keys.macKey2));
 
     fetchMessages(); // Fetch messages for the new selection
 });
