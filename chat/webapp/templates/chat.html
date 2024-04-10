@@ -55,7 +55,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+window.onload = async function() {
 
+    const response = await fetch('/current_user');
+    const currentUser = await response.json();
+
+    const { username } = currentUser;
+    // get private key
+    var storedData = JSON.parse(localStorage.getItem(username));
+    if (!storedData) {
+        console.warn("Warning: previous messages cannot be decrypted");
+    }
+
+};
 
 function getAndIncrementIvCounter() {
     let ivCounter = parseInt(localStorage.getItem('ivCounter'), 10) || 0;
@@ -149,17 +161,17 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
 
     if (lastIVHex === null) {
         lastIVHex = data.iv;
-        console.log('Null, SetitemlastIV:', data.iv);
+        //console.log('Null, SetitemlastIV:', data.iv);
     } else {
         if (data.iv <= lastIVHex) {
 
-            console.log('IV:', data.iv);
-            console.log('Last IV:', lastIVHex);
+            //console.log('IV:', data.iv);
+            //console.log('Last IV:', lastIVHex);
 
             throw new Error('IV is not greater than the last IV, possible replay attack');
         }
         lastIVHex = data.iv;
-        console.log('SetitemlastIV:', data.iv);
+        //console.log('SetitemlastIV:', data.iv);
     }
 
     
@@ -547,7 +559,7 @@ async function displayMessage(message) {
         hmac: messageText.hmac,
     };
 
-    console.log('Get Message text from db: ', message.message_id , data);
+    //console.log('Get Message text from db: ', message.message_id , data);
 
     const decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
     
