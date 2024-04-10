@@ -45,7 +45,7 @@ let lastMessageId = 0;
 let peer_id = -1;
 const myID = {{ sender_id }};
 let userInfo = {};
-let previousIv = null;
+var lastIVHex = null
 
 // Ctrl+Enter to send message
 document.addEventListener('DOMContentLoaded', function() {
@@ -126,10 +126,10 @@ async function AESencrypt(message, aesKey, macKey) {
         console.log('Encrypted message: (hex)', (messageData));
 
 
-        const testaesKey = localStorage.getItem('aesKey'+ myID + 'to' + peer_id);
-        const testmacKey = localStorage.getItem('macKey'+ myID + 'to' + peer_id);
+        //const testaesKey = localStorage.getItem('aesKey'+ myID + 'to' + peer_id);
+        //const testmacKey = localStorage.getItem('macKey'+ myID + 'to' + peer_id);
         
-        console.log(await AESdecrypt(messageData, testaesKey, testmacKey, myID, peer_id));
+        //console.log(await AESdecrypt(messageData, testaesKey, testmacKey, myID, peer_id));
         return messageData;
 
     } catch (error) {
@@ -143,17 +143,26 @@ function hexToArrayBuffer(hex) {
 
 async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
     
-    ciphertext = hexToArrayBuffer(data.ciphertext);
-    iv = hexToArrayBuffer(data.iv);
-    hmac = hexToArrayBuffer(data.hmac);
+    const ciphertext = hexToArrayBuffer(data.ciphertext);
+    const iv = hexToArrayBuffer(data.iv);
+    const hmac = hexToArrayBuffer(data.hmac);
 
-    const ivString = String.fromCharCode.apply(null, new Uint8Array(iv));
+    if (lastIVHex === null) {
+        lastIVHex = data.iv;
+        console.log('Null, SetitemlastIV:', data.iv);
+    } else {
+        if (data.iv <= lastIVHex) {
 
-    if (previousIv !== null && ivString <= previousIv) {
-        throw new Error('Replay attack detected!');
+            console.log('IV:', data.iv);
+            console.log('Last IV:', lastIVHex);
+
+            throw new Error('IV is not greater than the last IV, possible replay attack');
+        }
+        lastIVHex = data.iv;
+        console.log('SetitemlastIV:', data.iv);
     }
-    previousIv = ivString;
 
+    
 
     const jwkaesKey = await window.crypto.subtle.importKey(
         'jwk',
@@ -528,16 +537,23 @@ async function displayMessage(message) {
 
     // Set the message text
     const messageText = JSON.parse(message.message_text.replace(/'/g, '"'));
-    console.log('Get Message text from db:', messageText);
 
     const aesKey = localStorage.getItem('aesKey'+ message.sender_id + 'to' + message.receiver_id);
     const macKey = localStorage.getItem('macKey'+ message.sender_id + 'to' + message.receiver_id);
 
-    //const decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
+    const data = {
+        ciphertext: messageText.ciphertext,
+        iv: messageText.iv,
+        hmac: messageText.hmac,
+    };
+
+    console.log('Get Message text from db: ', message.message_id , data);
+
+    const decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
     
 
-    messageElement.textContent = `From ${sender} to ${receiver}: ${message.message_text}`;
-    //messageElement.textContent = `From ${sender} to ${receiver}: ${decryptedMessage}`;
+    //messageElement.textContent = `From ${sender} to ${receiver}: ${message.message_text}`;
+    messageElement.textContent = `From ${sender} to ${receiver}: ${decryptedMessage}`;
     messagesContainer.appendChild(messageElement);
 }
 
