@@ -160,7 +160,6 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
         
         if (lastIVHex === null) {
             lastIVHex = data.iv;
-            //console.log('Null, SetitemlastIV:', data.iv);
         } else {
             
             if (data.iv <= lastIVHex) {
@@ -171,7 +170,6 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
                 throw new Error('IV is not greater than the last IV, possible replay attack');
             }
             lastIVHex = data.iv;
-            //console.log('SetitemlastIV:', data.iv);
         }
     }
 
@@ -288,7 +286,6 @@ async function refreshKeys() {
     console.log('Refresh keys functionality will be implemented here.');
     // Placeholder for refresh functionality
 
-    let iv = localStorage.setItem('ivCounter', '0');
     let saltCounter = parseInt(localStorage.getItem('saltCounter'), 10)
     saltCounter = saltCounter + 1;
     localStorage.setItem('saltCounter', saltCounter.toString());
@@ -329,7 +326,11 @@ async function refreshKeys() {
     console.log('MAC key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.macKey1));
     console.log('MAC key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.macKey2));    
 
-    const specialMessage = lastIVHex + "change";
+    lastiv = localStorage.getItem('ivCounter');
+    lastiv = parseInt(localStorage.getItem('ivCounter')).toString(16);
+    const specialMessage = lastiv + "change";
+
+    let iv = localStorage.setItem('ivCounter', '0');
 
     oldMacjwk = await window.crypto.subtle.importKey(
         'jwk',
@@ -698,29 +699,12 @@ async function displayMessage(message) {
         );
 
 
-        const isValidoldHmac = await window.crypto.subtle.verify(
-            { 
-                name: 'HMAC', 
-                hash: { name: 'SHA-256' } 
-            },
-            oldMacjwk,
-            macKey,
-            message.message_text
-        );
-
-        if (!isValidoldHmac) {
-            console.error('Old MAC verification failed');
-        }
-
 
 
 
 
 
     } else{
-        //.log('Message:', messageText);
-        //console.log('is true?:', messageText.isSpecialMessage);
-
         
         decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
         messageElement.textContent = `From ${sender} to ${receiver}: ${decryptedMessage}`;
