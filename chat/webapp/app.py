@@ -327,7 +327,8 @@ def connectTo2FA():
 
 @app.route('/')
 def index():
-    if 'user_id' not in session or 'otp_status' not in session:
+    if 'user_id' not in session:
+        print("otp_status not in session")
         return redirect(url_for('login'))
     sender_id = session['user_id']
     return render_template('chat.html', sender_id=sender_id)

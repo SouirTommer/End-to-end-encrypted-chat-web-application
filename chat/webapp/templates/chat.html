@@ -71,7 +71,8 @@ window.onload = async function() {
 
 function getAndIncrementIvCounter() {
     let ivCounter = parseInt(localStorage.getItem('ivCounter'), 10) || 0;
-    localStorage.setItem('ivCounter', (ivCounter + 1).toString());
+    ivCounter ++;
+    localStorage.setItem('ivCounter', (ivCounter).toString());
     return ivCounter;
 }
 
@@ -137,11 +138,6 @@ async function AESencrypt(message, aesKey, macKey) {
         };
         console.log('Encrypted message: (hex)', (messageData));
 
-
-        //const testaesKey = localStorage.getItem('aesKey'+ myID + 'to' + peer_id);
-        //const testmacKey = localStorage.getItem('macKey'+ myID + 'to' + peer_id);
-        
-        //console.log(await AESdecrypt(messageData, testaesKey, testmacKey, myID, peer_id));
         return messageData;
 
     } catch (error) {
@@ -159,19 +155,24 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
     const iv = hexToArrayBuffer(data.iv);
     const hmac = hexToArrayBuffer(data.hmac);
 
-    if (lastIVHex === null) {
-        lastIVHex = data.iv;
-        //console.log('Null, SetitemlastIV:', data.iv);
-    } else {
-        if (data.iv <= lastIVHex) {
 
-            //console.log('IV:', data.iv);
-            //console.log('Last IV:', lastIVHex);
+    if (receiver_id == myID) {
+        
+        if (lastIVHex === null) {
+            lastIVHex = data.iv;
+            //console.log('Null, SetitemlastIV:', data.iv);
+        } else {
+            
+            if (data.iv <= lastIVHex) {
 
-            throw new Error('IV is not greater than the last IV, possible replay attack');
+                console.log('IV:', data.iv);
+                console.log('Last IV:', lastIVHex);
+
+                throw new Error('IV is not greater than the last IV, possible replay attack');
+            }
+            lastIVHex = data.iv;
+            //console.log('SetitemlastIV:', data.iv);
         }
-        lastIVHex = data.iv;
-        //console.log('SetitemlastIV:', data.iv);
     }
 
     
@@ -282,12 +283,125 @@ async function sendMessage() {
             console.error('Error sending message:', error); // Log any errors
         });
 }
-
 // Refresh Keys function placeholder
-function refreshKeys() {
+async function refreshKeys() {
     console.log('Refresh keys functionality will be implemented here.');
     // Placeholder for refresh functionality
-    counter ++;
+
+    let iv = localStorage.setItem('ivCounter', '0');
+    let saltCounter = parseInt(localStorage.getItem('saltCounter'), 10)
+    saltCounter = saltCounter + 1;
+    localStorage.setItem('saltCounter', saltCounter.toString());
+    
+    const salt = new TextEncoder().encode(saltCounter.toString());
+    //print the salt count
+    console.log('Salt Counter:', new TextDecoder().decode(salt));
+
+    const secretKey = await exchangeECDHkey();
+
+    const info1 = "CHAT_KEY_USER"+ myID + "to" + peer_id;
+    const info2 = "CHAT_KEY_USER"+ peer_id + "to" + myID;
+    const info3 = "MAC_KEY_USER"+ myID + "to" + peer_id;
+    const info4 = "MAC_KEY_USER"+ peer_id + "to" + myID;
+
+    //load old macKey
+    const oldMacKey = localStorage.getItem('macKey'+ myID + 'to' + peer_id);
+    // save old macKey
+    localStorage.setItem('oldMacKey'+ myID + 'to' + peer_id, oldMacKey);
+
+
+    const keys = await deriveHKDFKeys(secretKey, salt, info1, info2, info3, info4);
+    
+    aesKey1to2 = keys.encryptionKey1;
+    aesKey2to1 = keys.encryptionKey2;
+    macKey1to2 = keys.macKey1;
+    macKey2to1 = keys.macKey2;
+
+    saveKeyToLocalStorage("aesKey"+ myID + "to" + peer_id, aesKey1to2);
+    saveKeyToLocalStorage("aesKey"+ peer_id + "to" + myID, aesKey2to1);
+    saveKeyToLocalStorage("macKey"+ myID + "to" + peer_id, macKey1to2);
+    saveKeyToLocalStorage("macKey"+ peer_id + "to" + myID, macKey2to1);
+
+    console.log('refreshKeys: AES-GCM encryption keys:');
+    console.log('Encryption key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.encryptionKey1));
+    console.log('Encryption key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.encryptionKey2));
+    console.log('refreshKeys:  MAC keys:');
+    console.log('MAC key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.macKey1));
+    console.log('MAC key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.macKey2));    
+
+    const specialMessage = lastIVHex + "change";
+
+    oldMacjwk = await window.crypto.subtle.importKey(
+        'jwk',
+        JSON.parse(oldMacKey),
+        { name: 'HMAC', length: 256, hash: { name: 'SHA-256' } },
+        true,
+        ['sign', 'verify']
+    );
+
+    const oldMac = await window.crypto.subtle.sign({
+        name: 'HMAC',
+        hash: 'SHA-256',
+    }, 
+    oldMacjwk, 
+    new TextEncoder().encode(specialMessage));
+
+    const newMac = await window.crypto.subtle.sign({
+        name: 'HMAC',
+        hash: 'SHA-256',
+    }, 
+    macKey1to2, 
+    new TextEncoder().encode(specialMessage));
+
+    // to hex
+    console.log('Old MAC:', bufferToHex(oldMac));
+    console.log('New MAC:', bufferToHex(newMac));
+
+    lastIVHex = null;
+    sendSpecialMessage(peer_id, specialMessage, oldMac, newMac);
+
+}
+
+async function sendSpecialMessage(peer_id, specialMessage, oldMac, newMac) {
+    if (peer_id == -1) return; // Exit if no peer selected
+
+        let key1 = 'aesKey'+ myID + 'to' + peer_id;
+        let key2 = 'macKey'+ myID + 'to' + peer_id;
+
+        const aesKey = localStorage.getItem(key1);
+        const macKey = localStorage.getItem(key2);
+        
+        const payload = {
+            receiver_id: peer_id,
+            message_text: {
+                isSpecialMessage: true,
+                message_text: specialMessage,
+                oldMac: bufferToHex(oldMac),
+                newMac: bufferToHex(newMac),
+            },
+        };
+
+        fetch('/send_message', {
+            method: 'POST', // Specify the method
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(response => {
+            if (!response.ok) {
+                // If the server response is not OK, throw an error
+                throw new Error('Network response was not ok for sendSpecialMessage');
+            }
+            return response.json(); // Parse JSON response from the server
+        })
+        .then(data => {
+            console.log('Message sent:', data); // Log success message
+            document.getElementById('messageInput').value = ''; // Clear the input after sending
+        })
+        .catch(error => {
+            console.error('Error sending message:', error); // Log any errors
+        });
 }
 
 // Populate users function
@@ -479,7 +593,6 @@ async function deriveHKDFKeys(sharedSecret, salt, info1, info2, info3, info4) {
     return { encryptionKey1, encryptionKey2, macKey1, macKey2};
 }
 
-let counter = 1;
 // Handle user selection change
 document.getElementById('userList').addEventListener('change', async event => {
     peer_id = parseInt(event.target.value, 10); // Convert selected peer_id to integer
@@ -488,7 +601,13 @@ document.getElementById('userList').addEventListener('change', async event => {
 
 
     const secretKey = await exchangeECDHkey();
-    const salt = new TextEncoder().encode(counter.toString());
+
+    let saltCounter = parseInt(localStorage.getItem('saltCounter'), 10) || 1;
+    localStorage.setItem('saltCounter', saltCounter.toString());
+    const salt = new TextEncoder().encode(saltCounter.toString());
+
+    console.log('Salt Counter:', new TextDecoder().decode(salt));
+
     const info1 = "CHAT_KEY_USER"+ myID + "to" + peer_id;
     const info2 = "CHAT_KEY_USER"+ peer_id + "to" + myID;
     const info3 = "MAC_KEY_USER"+ myID + "to" + peer_id;
@@ -542,30 +661,72 @@ function fetchMessages() {
 async function displayMessage(message) {
     const messagesContainer = document.getElementById('messages');
     const messageElement = document.createElement('div');
+    let decryptedMessage = null;
 
     // Determine sender and receiver strings
     const sender = message.sender_id == myID ? "me" : (userInfo[message.sender_id] || `User ${message.sender_id}`);
     const receiver = message.receiver_id == myID ? "me" : (userInfo[message.receiver_id] || `User ${message.receiver_id}`);
 
     // Set the message text
-    const messageText = JSON.parse(message.message_text.replace(/'/g, '"'));
 
+    const messageText = JSON.parse(message.message_text.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false'));
     const aesKey = localStorage.getItem('aesKey'+ message.sender_id + 'to' + message.receiver_id);
     const macKey = localStorage.getItem('macKey'+ message.sender_id + 'to' + message.receiver_id);
 
-    const data = {
-        ciphertext: messageText.ciphertext,
-        iv: messageText.iv,
-        hmac: messageText.hmac,
-    };
+    if(messageText.isSpecialMessage) {
+        console.log('Special Message:');
+        messageElement.textContent = `Keys changed`;
+        
+        //print old mac and new mac
+        console.log('Old MAC:', messageText.oldMac);
+        console.log('New MAC:', messageText.newMac);
 
-    //console.log('Get Message text from db: ', message.message_id , data);
+        const oldMacjwk = await window.crypto.subtle.importKey(
+            'jwk',
+            JSON.parse(messageText.oldMac),
+            { name: 'HMAC', length: 256, hash: { name: 'SHA-256' } },
+            true,
+            ['sign', 'verify']
+        );
 
-    const decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
-    
+        const newMacjwk = await window.crypto.subtle.importKey(
+            'jwk',
+            JSON.parse(messageText.newMac),
+            { name: 'HMAC', length: 256, hash: { name: 'SHA-256' } },
+            true,
+            ['sign', 'verify']
+        );
+
+
+        const isValidoldHmac = await window.crypto.subtle.verify(
+            { 
+                name: 'HMAC', 
+                hash: { name: 'SHA-256' } 
+            },
+            oldMacjwk,
+            macKey,
+            message.message_text
+        );
+
+        if (!isValidoldHmac) {
+            console.error('Old MAC verification failed');
+        }
+
+
+
+
+
+
+    } else{
+        //.log('Message:', messageText);
+        //console.log('is true?:', messageText.isSpecialMessage);
+
+        
+        decryptedMessage = await AESdecrypt(messageText, aesKey, macKey, message.sender_id, message.receiver_id);
+        messageElement.textContent = `From ${sender} to ${receiver}: ${decryptedMessage}`;
+    }
 
     //messageElement.textContent = `From ${sender} to ${receiver}: ${message.message_text}`;
-    messageElement.textContent = `From ${sender} to ${receiver}: ${decryptedMessage}`;
     messagesContainer.appendChild(messageElement);
 }
 
