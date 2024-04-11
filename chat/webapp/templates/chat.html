@@ -161,22 +161,22 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
     const iv = hexToArrayBuffer(data.iv);
     const hmac = hexToArrayBuffer(data.hmac);
 
-    // if (receiver_id == myID) {
+    if (receiver_id == myID) {
         
-    //     if (lastIVHex === null) {
-    //         lastIVHex = data.iv;
-    //     } else {
+        if (lastIVHex === null) {
+            lastIVHex = data.iv;
+        } else {
             
-    //         if (data.iv <= lastIVHex) {
+            if (data.iv <= lastIVHex) {
 
-    //             console.log('IV:', data.iv);
-    //             console.log('Last IV:', lastIVHex);
+                console.log('IV:', data.iv);
+                console.log('Last IV:', lastIVHex);
 
-    //             throw new Error('IV is not greater than the last IV, possible replay attack');
-    //         }
-    //         lastIVHex = data.iv;
-    //     }
-    // }
+                throw new Error('IV is not greater than the last IV, possible replay attack');
+            }
+            lastIVHex = data.iv;
+        }
+    }
 
     const jwkaesKey = await window.crypto.subtle.importKey(
         'jwk',
@@ -494,6 +494,7 @@ async function exchangeECDHkey() {
     var storedData = JSON.parse(localStorage.getItem(username));
     var privateKeyJwk = storedData.privatekey;
 
+    try{
     const privateKey = await window.crypto.subtle.importKey(
         'jwk',
         privateKeyJwk,
@@ -501,12 +502,9 @@ async function exchangeECDHkey() {
         true,
         ['deriveKey']
     );
+    } catch (error) {}
     const mypublicKey = await fetchPublicKey(username);
     const selpublicKey = await fetchPublicKey(userInfo[peer_id]);
-
-    console.log("my Public key: (hex)", await exportKeyToHex(mypublicKey));
-    console.log("Selected user Public key: (hex)", await exportKeyToHex(selpublicKey));
-
 
     // Derive the shared secret key
     const secretKey = await deriveSecretKey(privateKey, selpublicKey);
