@@ -149,32 +149,34 @@ async function AESencrypt(message, aesKey, macKey) {
 }
 
 function hexToArrayBuffer(hex) {
+
     return new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16))).buffer;
 }
 
 async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
     
+    
     const ciphertext = hexToArrayBuffer(data.ciphertext);
+
     const iv = hexToArrayBuffer(data.iv);
     const hmac = hexToArrayBuffer(data.hmac);
 
-
-    if (receiver_id == myID) {
+    // if (receiver_id == myID) {
         
-        if (lastIVHex === null) {
-            lastIVHex = data.iv;
-        } else {
+    //     if (lastIVHex === null) {
+    //         lastIVHex = data.iv;
+    //     } else {
             
-            if (data.iv <= lastIVHex) {
+    //         if (data.iv <= lastIVHex) {
 
-                console.log('IV:', data.iv);
-                console.log('Last IV:', lastIVHex);
+    //             console.log('IV:', data.iv);
+    //             console.log('Last IV:', lastIVHex);
 
-                throw new Error('IV is not greater than the last IV, possible replay attack');
-            }
-            lastIVHex = data.iv;
-        }
-    }
+    //             throw new Error('IV is not greater than the last IV, possible replay attack');
+    //         }
+    //         lastIVHex = data.iv;
+    //     }
+    // }
 
     const jwkaesKey = await window.crypto.subtle.importKey(
         'jwk',
@@ -192,6 +194,11 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
         ['verify']
     );
 
+    //print the mac and hmac keys for debug
+    console.log('MAC key:', data.hmac);
+    
+
+
     const isValidHmac = await window.crypto.subtle.verify(
         { 
             name: 'HMAC', 
@@ -203,6 +210,7 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
     );
 
     if (!isValidHmac) {
+        console.log('text:', data.ciphertext);
         throw new Error('HMAC validation failed =(');
     }
     
@@ -282,23 +290,23 @@ async function sendMessage() {
             console.error('Error sending message:', error); // Log any errors
         });
 }
+
+
 // Refresh Keys function placeholder
 async function refreshKeys() {
-    console.log('Refresh keys functionality will be implemented here.');
-    // Placeholder for refresh functionality
 
 
     let localname = "saltCounter" + myID + "to" + peer_id;
-    let oldcounter = "oldSaltCounter" + myID + "to" + peer_id;
+    //let oldcounter = "oldSaltCounter" + myID + "to" + peer_id;
     let saltCounter = parseInt(localStorage.getItem(localname), 10)
     //save old saltCounter
-    localStorage.setItem(oldcounter, saltCounter.toString());
+    //localStorage.setItem(oldcounter, saltCounter.toString());
     saltCounter = saltCounter + 1;
-    localStorage.setItem(localname, saltCounter.toString());
+    //localStorage.setItem(localname, saltCounter.toString());
     
     const salt = new TextEncoder().encode(saltCounter.toString());
     //print the salt count
-    console.log('Salt Counter:', new TextDecoder().decode(salt));
+    //console.log('Salt Counter:', new TextDecoder().decode(salt));
 
     const secretKey = await exchangeECDHkey();
 
@@ -310,7 +318,7 @@ async function refreshKeys() {
     //load old macKey
     const oldMacKey = localStorage.getItem('macKey'+ myID + 'to' + peer_id);
     // save old macKey
-    localStorage.setItem('oldMacKey'+ myID + 'to' + peer_id, oldMacKey);
+    //localStorage.setItem('oldMacKey'+ myID + 'to' + peer_id, oldMacKey);
 
     oldMacjwk = await window.crypto.subtle.importKey(
         'jwk',
@@ -327,18 +335,6 @@ async function refreshKeys() {
     macKey1to2 = keys.macKey1;
     macKey2to1 = keys.macKey2;
 
-    saveKeyToLocalStorage("aesKey"+ myID + "to" + peer_id, aesKey1to2);
-    saveKeyToLocalStorage("aesKey"+ peer_id + "to" + myID, aesKey2to1);
-    saveKeyToLocalStorage("macKey"+ myID + "to" + peer_id, macKey1to2);
-    saveKeyToLocalStorage("macKey"+ peer_id + "to" + myID, macKey2to1);
-
-    console.log('refreshKeys: AES-GCM encryption keys:');
-    console.log('Encryption key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.encryptionKey1));
-    console.log('Encryption key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.encryptionKey2));
-    console.log('refreshKeys:  MAC keys:');
-    console.log('MAC key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.macKey1));
-    console.log('MAC key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.macKey2));    
-
     lastiv = parseInt(localStorage.getItem('ivCounter')).toString(10);
 
     const iv = new Uint8Array(new ArrayBuffer(12));
@@ -347,7 +343,7 @@ async function refreshKeys() {
 
     const specialMessage = initializationVector + "change";
     
-    localStorage.setItem('ivCounter', '0');
+    //localStorage.setItem('ivCounter', '0');
 
     const oldsign = await window.crypto.subtle.sign({
         name: 'HMAC',
@@ -493,10 +489,6 @@ async function exchangeECDHkey() {
     const currentUser = await response.json();
 
     const { username } = currentUser;
-
-    console.log('Selected user:', userInfo[peer_id]);
-    console.log('Current user:', username);
-
     // Load the private key from local storage
 
     var storedData = JSON.parse(localStorage.getItem(username));
@@ -509,23 +501,16 @@ async function exchangeECDHkey() {
         true,
         ['deriveKey']
     );
-
-    // Use the imported private key as needed
-    console.log("Current user private key: (jwk)", privateKey); 
-    
     const mypublicKey = await fetchPublicKey(username);
     const selpublicKey = await fetchPublicKey(userInfo[peer_id]);
 
-    //console.log('my Public key: (jwk)', mypublicKey);
     console.log("my Public key: (hex)", await exportKeyToHex(mypublicKey));
-    //console.log('Selected user Public key: (jwk)', selpublicKey);
     console.log("Selected user Public key: (hex)", await exportKeyToHex(selpublicKey));
 
 
     // Derive the shared secret key
     const secretKey = await deriveSecretKey(privateKey, selpublicKey);
     //console.log('Derived secret key: (jwk)', secretKey);
-
     saveKeyToLocalStorage("secretKey", secretKey);
 
     console.log("Derived secret key: (hex)", await exportKeyToHex(secretKey));
@@ -539,6 +524,10 @@ window.onbeforeunload = function() {
     let localname = "saltCounter" + myID + "to" + peer_id;
     let saltCounter = 1
     localStorage.setItem(localname, saltCounter.toString());
+
+    // save salt to old salt
+    let oldcounter = "oldSaltCounter" + myID + "to" + peer_id;
+    localStorage.setItem(oldcounter, saltCounter.toString());
 };
 
 
@@ -662,15 +651,15 @@ function clearChatBox() {
 }
 
 // Fetch messages from server
-function fetchMessages() {
+async function fetchMessages() {
     if (peer_id === -1) return; // Exit if no peer selected
     fetch(`/fetch_messages?last_message_id=${lastMessageId}&peer_id=${peer_id}`)
         .then(response => response.json())
-        .then(data => {
-            data.messages.forEach(message => {
-                displayMessage(message);
+        .then(async data => {
+            for (const message of data.messages) {
+                await displayMessage(message);
                 lastMessageId = message.message_id;
-            });
+            }
         })
         .catch(error => console.error('Error fetching messages:', error));
 }
@@ -702,9 +691,8 @@ async function displayMessage(message) {
 
     var result = Math.round(diff / 60000);
 
-    if(messageText.isSpecialMessage && result < 1) {
-
-        console.log('Special Message:', messageText.message_text);
+    if(messageText.isSpecialMessage) {
+        
         
         //print old mac and new mac
         console.log('Old sign:', messageText.oldsign);
@@ -713,16 +701,14 @@ async function displayMessage(message) {
         //verify old mac
 
         if (verifyMac(messageText.oldsign, oldMacKey, messageText.iv)){
-            // if is receiver
-            if (message.receiver_id == myID) {
-                genNewKey();
-            }
+            // if is receiver_id
+                console.log('Refresh verifyed mac: gening new key');
+                await genNewKey();
         }
 
         if (verifynewMac(messageText.newsign, macKey, messageText.iv)){
             messageElement.textContent = `Keys changed`;
         }
-        
 
 
     } else{
@@ -734,6 +720,7 @@ async function displayMessage(message) {
     //messageElement.textContent = `From ${sender} to ${receiver}: ${message.message_text}`;
     messagesContainer.appendChild(messageElement);
 }
+
 
 async function genNewKey(){
 
@@ -788,13 +775,13 @@ async function genNewKey(){
     console.log('Encryption key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.encryptionKey2));
     console.log('refreshKeys:  MAC keys:');
     console.log('MAC key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.macKey1));
-    console.log('MAC key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.macKey2));    
+    console.log('MAC key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.macKey2));
     
 }
 
 async function verifyMac(receivedoldMac, mackey, iv) {
 
-    const oldmac = hexToArrayBuffer(receivedoldMac);
+    //const oldmac = hexToArrayBuffer(receivedoldMac);
 
     const jwkmacKey = await window.crypto.subtle.importKey(
         'jwk',
@@ -814,7 +801,7 @@ async function verifyMac(receivedoldMac, mackey, iv) {
 
 async function verifynewMac(receivednewMac, mackey, iv) {
 
-    const newmac = hexToArrayBuffer(receivednewMac);
+    //const newmac = hexToArrayBuffer(receivednewMac);
 
     const jwkmacKey = await window.crypto.subtle.importKey(
         'jwk',
