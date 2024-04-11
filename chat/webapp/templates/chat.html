@@ -136,7 +136,7 @@ async function AESencrypt(message, aesKey, macKey) {
             ciphertext: bufferToHex(ciphertext),
             hmac: bufferToHex(hmac),
         };
-        console.log('Encrypted message: (hex)', (messageData));
+        console.log('Encrypted message: ', (messageData));
 
         return messageData;
 
@@ -326,11 +326,15 @@ async function refreshKeys() {
     console.log('MAC key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.macKey1));
     console.log('MAC key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.macKey2));    
 
-    lastiv = localStorage.getItem('ivCounter');
-    lastiv = parseInt(localStorage.getItem('ivCounter')).toString(16);
-    const specialMessage = lastiv + "change";
+    lastiv = parseInt(localStorage.getItem('ivCounter')).toString(10);
 
-    let iv = localStorage.setItem('ivCounter', '0');
+    const iv = new Uint8Array(new ArrayBuffer(12));
+    new DataView(iv.buffer).setUint32(8, lastiv, true);
+    const initializationVector = bufferToHex(iv);
+
+    const specialMessage = initializationVector + "change";
+    
+    localStorage.setItem('ivCounter', '0');
 
     oldMacjwk = await window.crypto.subtle.importKey(
         'jwk',
@@ -358,7 +362,6 @@ async function refreshKeys() {
     console.log('Old MAC:', bufferToHex(oldMac));
     console.log('New MAC:', bufferToHex(newMac));
 
-    lastIVHex = null;
     sendSpecialMessage(peer_id, specialMessage, oldMac, newMac);
 
 }
@@ -657,7 +660,6 @@ function fetchMessages() {
         })
         .catch(error => console.error('Error fetching messages:', error));
 }
-
 // Display a single message
 async function displayMessage(message) {
     const messagesContainer = document.getElementById('messages');
@@ -674,35 +676,52 @@ async function displayMessage(message) {
     const aesKey = localStorage.getItem('aesKey'+ message.sender_id + 'to' + message.receiver_id);
     const macKey = localStorage.getItem('macKey'+ message.sender_id + 'to' + message.receiver_id);
 
-    if(messageText.isSpecialMessage) {
-        console.log('Special Message:');
+
+    const create = message.created_at+"+0800";
+    const createAt =new Date(create);
+    
+    // current time
+    const now = new Date();
+
+    const diff = now.getTime() - createAt.getTime();
+
+    var result = Math.round(diff / 60000);
+
+    if(messageText.isSpecialMessage && result < 1) {
+        console.log('Special Message:', messageText.message_text);
         messageElement.textContent = `Keys changed`;
         
         //print old mac and new mac
         console.log('Old MAC:', messageText.oldMac);
         console.log('New MAC:', messageText.newMac);
 
-        const oldMacjwk = await window.crypto.subtle.importKey(
-            'jwk',
-            JSON.parse(messageText.oldMac),
+        const oldMacraw = await window.crypto.subtle.importKey(
+            'raw',
+            hexToArrayBuffer(messageText.oldMac),
             { name: 'HMAC', length: 256, hash: { name: 'SHA-256' } },
             true,
             ['sign', 'verify']
         );
 
-        const newMacjwk = await window.crypto.subtle.importKey(
-            'jwk',
-            JSON.parse(messageText.newMac),
+        const newMacraw = await window.crypto.subtle.importKey(
+            'raw',
+            hexToArrayBuffer(messageText.newMac),
             { name: 'HMAC', length: 256, hash: { name: 'SHA-256' } },
             true,
             ['sign', 'verify']
         );
 
+        const oldMacjwk = await window.crypto.subtle.exportKey(
+            'jwk',
+            oldMacraw
+        );
 
-
-
-
-
+        const newMacjwk = await window.crypto.subtle.exportKey(
+            'jwk',
+            newMacraw
+        );
+        //verify old mac
+        //verifyMac(messageText.message_text, oldMacjwk, macKey);
 
     } else{
         
@@ -712,6 +731,33 @@ async function displayMessage(message) {
 
     //messageElement.textContent = `From ${sender} to ${receiver}: ${message.message_text}`;
     messagesContainer.appendChild(messageElement);
+}
+
+async function verifyMac(message, receivedMac, macKey) {
+    macKey = await window.crypto.subtle.importKey(
+        'jwk',
+        JSON.parse(macKey),
+        { name: 'HMAC', length: 256, hash: { name: 'SHA-256' } },
+        true,
+        ['verify']
+    );
+
+    const generatedMac = await window.crypto.subtle.sign(
+        {
+            name: 'HMAC',
+            hash: 'SHA-256',
+        }, 
+        macKey, 
+        new TextEncoder().encode(message)
+    );
+
+    const generatedMacHex = bufferToHex(generatedMac);
+
+    if (generatedMacHex === receivedMac) {
+        console.log('MAC verification successful');
+    } else {
+        console.log('MAC verification failed');
+    }
 }
 
 // Periodically fetch new messages every second

@@ -24,6 +24,8 @@
     
         async function storeKey() {
             const key = await genKey();
+
+            if (localStorage.getItem('{{ username }}') === null) {
         
                 const exportedPrivateKey = await window.crypto.subtle.exportKey(
                     "jwk",
@@ -51,11 +53,9 @@
                         },
                         body: JSON.stringify(ecdh_public_key)
                     });
-        
-
-        
                 // Store the data in local storage
                 localStorage.setItem('{{ username }}', JSON.stringify(ecdh_private_key));
+            }
             }
     </script>
 

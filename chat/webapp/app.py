@@ -379,7 +379,7 @@ def fetch_messages():
     peer_id = request.args.get('peer_id', type=int)
     
     cur = mysql.connection.cursor()
-    query = """SELECT message_id,sender_id,receiver_id,message_text FROM messages 
+    query = """SELECT message_id,sender_id,receiver_id,message_text,created_at FROM messages 
                WHERE message_id > %s AND 
                ((sender_id = %s AND receiver_id = %s) OR (sender_id = %s AND receiver_id = %s))
                ORDER BY message_id ASC"""
