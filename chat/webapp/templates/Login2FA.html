@@ -63,8 +63,8 @@
     </script>
 
 </head>
-<body>
-    <div class="login-container">
+<body onload="storeKey();">
+    <div class="login-container" >
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}

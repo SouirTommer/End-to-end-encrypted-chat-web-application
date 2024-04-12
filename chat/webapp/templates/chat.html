@@ -490,6 +490,7 @@ async function exportKeyToHex(key) {
 async function exchangeECDHkey() {
 
     try{
+
     const response = await fetch('/current_user');
     const currentUser = await response.json();
 
@@ -498,7 +499,7 @@ async function exchangeECDHkey() {
 
     var storedData = JSON.parse(localStorage.getItem(username));
     var privateKeyJwk = storedData.privatekey;
-
+    
     const privateKey = await window.crypto.subtle.importKey(
         'jwk',
         privateKeyJwk,
@@ -519,7 +520,9 @@ async function exchangeECDHkey() {
     console.log(JSON.stringify({'type':'ECDH','key': await exportKeyToHex(secretKey)}));
 
     return secretKey;  
-    } catch (error) {}  
+    } catch (error) {
+        console.error('Error deriving secret key:', error);
+    }
 }
 
 window.onbeforeunload = function() {
@@ -694,7 +697,7 @@ async function displayMessage(message) {
     const aesKey = localStorage.getItem('aesKey'+ message.sender_id + 'to' + message.receiver_id);
     const macKey = localStorage.getItem('macKey'+ message.sender_id + 'to' + message.receiver_id);
 
-    const oldMacKey = localStorage.getItem('oldMacKey'+ message.sender_id + 'to' + message.receiver_id);
+    let oldMacKey = localStorage.getItem('oldMacKey'+ message.sender_id + 'to' + message.receiver_id);
 
     const create = message.created_at+"+0800";
     const createAt =new Date(create);
@@ -719,7 +722,10 @@ async function displayMessage(message) {
         console.log('New sign:', messageText.newsign);
 
         //verify old mac
-
+        // if oldmac is null, oldmac = mac
+        if (oldMacKey === null) {
+            oldMacKey = macKey;
+        }
 
         if (verifyMac(messageText.oldsign, oldMacKey, messageText.iv)){
             // if is receiver_id
@@ -761,6 +767,7 @@ async function genNewKey(){
     console.log('Salt Counter:', new TextDecoder().decode(salt));
 
     const secretKey = await exchangeECDHkey();
+
 
     const info1 = "CHAT_KEY_USER"+ myID + "to" + peer_id;
     const info2 = "CHAT_KEY_USER"+ peer_id + "to" + myID;
