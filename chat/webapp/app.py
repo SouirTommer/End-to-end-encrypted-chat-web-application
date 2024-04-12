@@ -27,7 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # ==============================================================================
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, abort, flash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, abort, flash, make_response
 from flask_mysqldb import MySQL
 from flask_session import Session
 import yaml
@@ -332,8 +332,11 @@ def index():
     if 'user_id' not in session:
         print("otp_status not in session")
         return redirect(url_for('login'))
+    
     sender_id = session['user_id']
-    return render_template('chat.html', sender_id=sender_id)
+    resp = make_response(render_template('chat.html', sender_id=sender_id))
+    resp.headers['Content-Security-Policy'] = "default-src * 'unsafe-inline' 'unsafe-eval'"
+    return resp
 
 @app.route('/users')
 def users():
