@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
     <!-- Bootstrap CSS -->
@@ -24,6 +25,7 @@
     
         async function storeKey() {
             const key = await genKey();
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
             if (localStorage.getItem('{{ username }}') === null) {
         
@@ -49,7 +51,8 @@
                     fetch('/store_ecdh_public_key', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
                         },
                         body: JSON.stringify(ecdh_public_key)
                     });
@@ -60,7 +63,7 @@
     </script>
 
 </head>
-<body onload="storeKey()">
+<body>
     <div class="login-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
@@ -75,6 +78,7 @@
         {% endif %}
         <form action="/login2FA" method="post" onsubmit="storeKey();">
 
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="qrcode">Enter your OTP code or recovery key</label>
                 <input type="text" class="form-control" id="otp" name="otp" placeholder="code" required>

@@ -6,6 +6,7 @@ Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the original author is acknowledged. See JavaScript source for full license text.
 -->
 <head>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Application</title>
@@ -265,11 +266,12 @@ async function sendMessage() {
                 hmac: messageData.hmac,
             },
         };
-
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         fetch('/send_message', {
             method: 'POST', // Specify the method
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
             },
             body: JSON.stringify(payload),
         })
@@ -382,11 +384,12 @@ async function sendSpecialMessage(peer_id, specialMessage, oldsign, newsign, iv)
                 iv: iv,
             },
         };
-
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         fetch('/send_message', {
             method: 'POST', // Specify the method
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
             },
             body: JSON.stringify(payload),
         })
@@ -455,10 +458,12 @@ function deriveSecretKey(privateKey, publicKey) {
 
 async function fetchPublicKey(username) {
     // Fetch the public key of the selected user
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
     const response_public = await fetch('/get_ecdh_public_key', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
         },
         body: JSON.stringify({ username: username })
     });
@@ -851,6 +856,9 @@ setInterval(fetchMessages, 1000);
 
 // Erase Chat function using fetch API
 function eraseChat() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+
     if (peer_id === -1) return; // Exit if no peer selected
     if (!confirm('Are you sure you want to erase the chat with '+userInfo[peer_id]+'?')) return; // Confirmation before erasing
 
@@ -858,6 +866,7 @@ function eraseChat() {
         method: 'POST',  // A REST API should use POST if it leads to modifications
         headers: {
             'Content-Type': 'application/json', 
+            'X-CSRFToken': csrfToken
         },
         body: JSON.stringify({ peer_id: peer_id })
     })

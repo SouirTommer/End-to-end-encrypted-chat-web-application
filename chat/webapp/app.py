@@ -38,8 +38,10 @@ import pyotp
 import random
 import pyqrcode
 import json
+from flask_wtf import CSRFProtect
 
 app = Flask(__name__)
+csrf = CSRFProtect(app)
 
 # Configure secret key and Flask-Session
 app.config['SECRET_KEY'] = '6LfvfLApAAAAAPRbNh_h-j7ZEfA4pJ-LXbk208nF'
