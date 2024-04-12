@@ -166,13 +166,13 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
         if (lastIVHex === null) {
             lastIVHex = data.iv;
         } else {
+            console.log('IV:', data.iv);
+            console.log('Last IV:', lastIVHex);
             
             if (data.iv <= lastIVHex) {
-
-                console.log('IV:', data.iv);
-                console.log('Last IV:', lastIVHex);
-
-                throw new Error('IV is not greater than the last IV, possible replay attack');
+                
+                console.error('IV is not greater than the last IV, possible replay attack, skip decryption for this message');
+                return 'Message not decrypted';
             }
             lastIVHex = data.iv;
         }
@@ -194,10 +194,6 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
         ['verify']
     );
 
-    //print the mac and hmac keys for debug
-    console.log('MAC key:', data.hmac);
-    
-
 
     const isValidHmac = await window.crypto.subtle.verify(
         { 
@@ -212,6 +208,8 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
     if (!isValidHmac) {
         console.log('text:', data.ciphertext);
         throw new Error('HMAC validation failed =(');
+    } else {
+        console.log('HMAC validation succeeded');
     }
     
     // Decrypt
@@ -485,6 +483,8 @@ async function exportKeyToHex(key) {
 }
 
 async function exchangeECDHkey() {
+
+    try{
     const response = await fetch('/current_user');
     const currentUser = await response.json();
 
@@ -494,7 +494,6 @@ async function exchangeECDHkey() {
     var storedData = JSON.parse(localStorage.getItem(username));
     var privateKeyJwk = storedData.privatekey;
 
-    try{
     const privateKey = await window.crypto.subtle.importKey(
         'jwk',
         privateKeyJwk,
@@ -502,7 +501,6 @@ async function exchangeECDHkey() {
         true,
         ['deriveKey']
     );
-    } catch (error) {}
     const mypublicKey = await fetchPublicKey(username);
     const selpublicKey = await fetchPublicKey(userInfo[peer_id]);
 
@@ -511,10 +509,11 @@ async function exchangeECDHkey() {
     //console.log('Derived secret key: (jwk)', secretKey);
     saveKeyToLocalStorage("secretKey", secretKey);
 
-    console.log("Derived secret key: (hex)", await exportKeyToHex(secretKey));
+    console.log("Derived secret key: ", await exportKeyToHex(secretKey));
     
 
-    return secretKey;    
+    return secretKey;  
+    } catch (error) {}  
 }
 
 window.onbeforeunload = function() {
@@ -611,7 +610,7 @@ document.getElementById('userList').addEventListener('change', async event => {
     localStorage.setItem(localname, saltCounter.toString());
     const salt = new TextEncoder().encode(saltCounter.toString());
 
-    console.log('Salt Counter:', new TextDecoder().decode(salt));
+    //console.log('Salt Counter:', new TextDecoder().decode(salt));
 
     const info1 = "CHAT_KEY_USER"+ myID + "to" + peer_id;
     const info2 = "CHAT_KEY_USER"+ peer_id + "to" + myID;
@@ -632,11 +631,11 @@ document.getElementById('userList').addEventListener('change', async event => {
 
 
     console.log('256-bit AES-GCM encryption keys:');
-    console.log('Encryption key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.encryptionKey1));
-    console.log('Encryption key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.encryptionKey2));
-    console.log('256-bit MAC keys: (hex)');
-    console.log('MAC key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.macKey1));
-    console.log('MAC key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.macKey2));
+    console.log('Encryption key ' + myID + "to" + peer_id, await exportKeyToHex(keys.encryptionKey1));
+    console.log('Encryption key ' + peer_id + "to" + myID, await exportKeyToHex(keys.encryptionKey2));
+    console.log('256-bit MAC keys: ');
+    console.log('MAC key ' + myID + "to" + peer_id, await exportKeyToHex(keys.macKey1));
+    console.log('MAC key ' + peer_id + "to" + myID, await exportKeyToHex(keys.macKey2));
 
     fetchMessages(); // Fetch messages for the new selection
 });
@@ -691,12 +690,14 @@ async function displayMessage(message) {
 
     if(messageText.isSpecialMessage) {
         
+        console.log('Detect special message, time different(min): ', result);
         
         //print old mac and new mac
         console.log('Old sign:', messageText.oldsign);
         console.log('New sign:', messageText.newsign);
 
         //verify old mac
+
 
         if (verifyMac(messageText.oldsign, oldMacKey, messageText.iv)){
             // if is receiver_id
@@ -707,6 +708,7 @@ async function displayMessage(message) {
         if (verifynewMac(messageText.newsign, macKey, messageText.iv)){
             messageElement.textContent = `Keys changed`;
         }
+
 
 
     } else{
@@ -734,7 +736,7 @@ async function genNewKey(){
     
     const salt = new TextEncoder().encode(saltCounter.toString());
     //print the salt count
-    console.log('Salt Counter:', new TextDecoder().decode(salt));
+    //console.log('Salt Counter:', new TextDecoder().decode(salt));
 
     const secretKey = await exchangeECDHkey();
 
@@ -769,11 +771,11 @@ async function genNewKey(){
     saveKeyToLocalStorage("macKey"+ peer_id + "to" + myID, macKey2to1);
 
     console.log('refreshKeys: AES-GCM encryption keys:');
-    console.log('Encryption key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.encryptionKey1));
-    console.log('Encryption key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.encryptionKey2));
+    console.log('Encryption key ' + myID + "to" + peer_id, await exportKeyToHex(keys.encryptionKey1));
+    console.log('Encryption key ' + peer_id + "to" + myID, await exportKeyToHex(keys.encryptionKey2));
     console.log('refreshKeys:  MAC keys:');
-    console.log('MAC key ' + myID + "to" + peer_id +': (hex)', await exportKeyToHex(keys.macKey1));
-    console.log('MAC key ' + peer_id + "to" + myID +': (hex)', await exportKeyToHex(keys.macKey2));
+    console.log('MAC key ' + myID + "to" + peer_id, await exportKeyToHex(keys.macKey1));
+    console.log('MAC key ' + peer_id + "to" + myID, await exportKeyToHex(keys.macKey2));
     
 }
 
