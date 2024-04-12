@@ -39,8 +39,18 @@ import random
 import pyqrcode
 import json
 from flask_wtf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
+
+
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["100 per day", "20 per hour"]
+)
+
 csrf = CSRFProtect(app)
 
 # Configure secret key and Flask-Session
@@ -63,10 +73,12 @@ GOOGLE_RECAPTCHA_SITE_KEY = '6LfvfLApAAAAABC2Lo-4RAi6JE6CgJ8Lysa3xnir'
 GOOGLE_RECAPTCHA_SECRET_KEY = '6LfvfLApAAAAAPRbNh_h-j7ZEfA4pJ-LXbk208nF'
 GOOGLE_RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
+
 # Initialize the Flask-Session
 Session(app)
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("3 per minute", methods=["POST"])
 def login():
     error = None
     session.clear()
