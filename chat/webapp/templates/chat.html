@@ -67,15 +67,14 @@ window.onload = async function() {
     if (!storedData) {
         console.warn("Warning: previous messages cannot be decrypted");
     }
-
-    
-
 };
 
 function getAndIncrementIvCounter() {
     let ivCounter = parseInt(localStorage.getItem('ivCounter'), 10) || 0;
     ivCounter ++;
     localStorage.setItem('ivCounter', (ivCounter).toString());
+    //print ivCounter
+    console.log('IV Counter:', ivCounter);
     return ivCounter;
 }
 
@@ -139,7 +138,8 @@ async function AESencrypt(message, aesKey, macKey) {
             ciphertext: bufferToHex(ciphertext),
             hmac: bufferToHex(hmac),
         };
-        console.log('Encrypted message: ', (messageData));
+        //console.log('Encrypted message: ', (messageData));
+        console.log('Encrypted message: ', JSON.stringify(messageData));
 
         return messageData;
 
@@ -166,7 +166,7 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
         if (lastIVHex === null) {
             lastIVHex = data.iv;
         } else {
-            console.log('IV:', data.iv);
+            console.log('Data IV:', data.iv);
             console.log('Last IV:', lastIVHex);
             
             if (data.iv <= lastIVHex) {
@@ -207,9 +207,9 @@ async function AESdecrypt(data, aesKey, macKey, sender_id, receiver_id) {
 
     if (!isValidHmac) {
         console.log('text:', data.ciphertext);
-        throw new Error('HMAC validation failed =(');
+        throw new Error('Decrypt: HMAC validation failed =(');
     } else {
-        console.log('HMAC validation succeeded');
+        console.log('Decrypt: HMAC validation succeeded');
     }
     
     // Decrypt
@@ -509,8 +509,9 @@ async function exchangeECDHkey() {
     //console.log('Derived secret key: (jwk)', secretKey);
     saveKeyToLocalStorage("secretKey", secretKey);
 
-    console.log("Derived secret key: ", await exportKeyToHex(secretKey));
     
+    console.log("Derived secret key: ");
+    console.log(JSON.stringify({'type':'ECDH','key': await exportKeyToHex(secretKey)}));
 
     return secretKey;  
     } catch (error) {}  
@@ -610,7 +611,7 @@ document.getElementById('userList').addEventListener('change', async event => {
     localStorage.setItem(localname, saltCounter.toString());
     const salt = new TextEncoder().encode(saltCounter.toString());
 
-    //console.log('Salt Counter:', new TextDecoder().decode(salt));
+    console.log('Salt Counter:', new TextDecoder().decode(salt));
 
     const info1 = "CHAT_KEY_USER"+ myID + "to" + peer_id;
     const info2 = "CHAT_KEY_USER"+ peer_id + "to" + myID;
@@ -636,6 +637,18 @@ document.getElementById('userList').addEventListener('change', async event => {
     console.log('256-bit MAC keys: ');
     console.log('MAC key ' + myID + "to" + peer_id, await exportKeyToHex(keys.macKey1));
     console.log('MAC key ' + peer_id + "to" + myID, await exportKeyToHex(keys.macKey2));
+
+    console.log({
+        type: 'HKDFKeys',
+        key: [
+            { id: 'Encryption key ' + myID + 'to' + peer_id, value: await exportKeyToHex(keys.encryptionKey1) },
+            { id: 'Encryption key ' + peer_id + 'to' + myID, value: await exportKeyToHex(keys.encryptionKey2) },
+            { id: 'MAC key ' + myID + 'to' + peer_id, value: await exportKeyToHex(keys.macKey1) },
+            { id: 'MAC key ' + peer_id + 'to' + myID, value: await exportKeyToHex(keys.macKey2) }
+        ]
+    });
+    
+
 
     fetchMessages(); // Fetch messages for the new selection
 });
@@ -691,6 +704,10 @@ async function displayMessage(message) {
     if(messageText.isSpecialMessage) {
         
         console.log('Detect special message, time different(min): ', result);
+
+
+        console.log(JSON.stringify(messageText));
+        
         
         //print old mac and new mac
         console.log('Old sign:', messageText.oldsign);
@@ -736,7 +753,7 @@ async function genNewKey(){
     
     const salt = new TextEncoder().encode(saltCounter.toString());
     //print the salt count
-    //console.log('Salt Counter:', new TextDecoder().decode(salt));
+    console.log('Salt Counter:', new TextDecoder().decode(salt));
 
     const secretKey = await exchangeECDHkey();
 
@@ -776,6 +793,17 @@ async function genNewKey(){
     console.log('refreshKeys:  MAC keys:');
     console.log('MAC key ' + myID + "to" + peer_id, await exportKeyToHex(keys.macKey1));
     console.log('MAC key ' + peer_id + "to" + myID, await exportKeyToHex(keys.macKey2));
+
+
+    console.log({
+        type: 'RefreshKeys',
+        key: [
+            { id: 'Encryption key ' + myID + 'to' + peer_id, value: await exportKeyToHex(keys.encryptionKey1) },
+            { id: 'Encryption key ' + peer_id + 'to' + myID, value: await exportKeyToHex(keys.encryptionKey2) },
+            { id: 'MAC key ' + myID + 'to' + peer_id, value: await exportKeyToHex(keys.macKey1) },
+            { id: 'MAC key ' + peer_id + 'to' + myID, value: await exportKeyToHex(keys.macKey2) }
+        ]
+    });
     
 }
 
@@ -791,7 +819,7 @@ async function verifyMac(receivedoldMac, mackey, iv) {
         ['verify']
     );
     
-    console.log("Old sign valid")
+    console.log("Refresh: Old sign valid")
     console.log(jwkmacKey);
 
     return true;
@@ -811,7 +839,7 @@ async function verifynewMac(receivednewMac, mackey, iv) {
         ['verify']
     );
     
-    console.log("new sign valid")
+    console.log("Refresh: new sign valid")
     console.log(jwkmacKey);
 
     return true;
