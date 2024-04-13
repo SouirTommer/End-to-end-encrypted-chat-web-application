@@ -1,14 +1,14 @@
 
 
 #local
-mysql_host: 'localhost'
-mysql_user: 'root'
-mysql_password: 'root'
+# mysql_host: 'localhost'
+# mysql_user: 'root'
+# mysql_password: 'root'
 
 # docker
-# mysql_host: 'db'  # Name of the MySQL service in Docker Compose
-# mysql_user: 'chatuser'
-# mysql_password: 'chatpassword'
+mysql_host: 'db'  # Name of the MySQL service in Docker Compose
+mysql_user: 'chatuser'
+mysql_password: 'chatpassword'
 
 
 #

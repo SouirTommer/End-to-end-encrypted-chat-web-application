@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
     <!-- Bootstrap CSS -->
@@ -10,11 +11,60 @@
     <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
     <script src="https://www.google.com/recaptcha/enterprise.js" async defer></script>
     <script src="https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit" async defer></script>
+    <script>
+        async function genKey() {
+            return await window.crypto.subtle.generateKey(
+                {
+                    name: "ECDH",
+                    namedCurve: "P-384",
+                },
+                true,
+                ["deriveKey"]
+            );
+        }
+    
+        async function storeKey() {
+            const key = await genKey();
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
+            if (localStorage.getItem('{{ username }}') === null) {
+        
+                const exportedPrivateKey = await window.crypto.subtle.exportKey(
+                    "jwk",
+                    key.privateKey
+                );
+
+                const exportedPublicKey = await window.crypto.subtle.exportKey(
+                    "jwk",
+                    key.publicKey
+                );
+        
+                var ecdh_private_key = {
+                    privatekey: exportedPrivateKey,
+                };
+    
+                var ecdh_public_key = {
+                    username: "{{ username }}",
+                    publickey: exportedPublicKey,
+                };
+                    // Send the public key to the server
+                    fetch('/store_ecdh_public_key', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify(ecdh_public_key)
+                    });
+                // Store the data in local storage
+                localStorage.setItem('{{ username }}', JSON.stringify(ecdh_private_key));
+            }
+            }
+    </script>
 
 </head>
-<body>
-    <div class="login-container">
+<body onload="storeKey();">
+    <div class="login-container" >
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
@@ -26,8 +76,9 @@
         {% if error %}
             <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
-        <form action="/login2FA" method="post" onsubmit="sendPublicKey();">
+        <form action="/login2FA" method="post" onsubmit="storeKey();">
 
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="qrcode">Enter your OTP code or recovery key</label>
                 <input type="text" class="form-control" id="otp" name="otp" placeholder="code" required>

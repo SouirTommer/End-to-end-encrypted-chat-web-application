@@ -27,7 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # ==============================================================================
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, abort, flash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, abort, flash, make_response
 from flask_mysqldb import MySQL
 from flask_session import Session
 import yaml
@@ -38,8 +38,20 @@ import pyotp
 import random
 import pyqrcode
 import json
+from flask_wtf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
+
+
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["100 per day", "20 per hour"]
+)
+
+csrf = CSRFProtect(app)
 
 # Configure secret key and Flask-Session
 app.config['SECRET_KEY'] = '6LfvfLApAAAAAPRbNh_h-j7ZEfA4pJ-LXbk208nF'
@@ -61,10 +73,12 @@ GOOGLE_RECAPTCHA_SITE_KEY = '6LfvfLApAAAAABC2Lo-4RAi6JE6CgJ8Lysa3xnir'
 GOOGLE_RECAPTCHA_SECRET_KEY = '6LfvfLApAAAAAPRbNh_h-j7ZEfA4pJ-LXbk208nF'
 GOOGLE_RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
+
 # Initialize the Flask-Session
 Session(app)
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("3 per minute", methods=["POST"])
 def login():
     error = None
     session.clear()
@@ -94,6 +108,8 @@ def login():
         else:
             error = 'Invalid reCAPTCHA. Please try again.'
     return render_template('login.html', error=error, site_key=GOOGLE_RECAPTCHA_SITE_KEY)
+
+
 
 @app.route('/login2FA', methods=['GET', 'POST'])
 def login2FA():
@@ -325,10 +341,14 @@ def connectTo2FA():
 
 @app.route('/')
 def index():
-    if 'user_id' not in session or 'otp_status' not in session:
+    if 'user_id' not in session:
+        print("otp_status not in session")
         return redirect(url_for('login'))
+    
     sender_id = session['user_id']
-    return render_template('chat.html', sender_id=sender_id)
+    resp = make_response(render_template('chat.html', sender_id=sender_id))
+    resp.headers['Content-Security-Policy'] = "default-src * 'unsafe-inline' 'unsafe-eval'"
+    return resp
 
 @app.route('/users')
 def users():
@@ -343,6 +363,30 @@ def users():
     filtered_users = [[user[0], user[1]] for user in user_data if user[0] != session['user_id']]
     return {'users': filtered_users}
 
+@app.route('/current_user')
+def current_user():
+    if 'user_id' not in session:
+        abort(403)
+    return {'user_id': session['user_id'], 'username': session['username']}
+
+# get ECDH public key by username
+@app.route('/get_ecdh_public_key', methods=['POST'])
+def get_ecdh_public_key():
+    data = request.get_json()
+    username = data['username']
+    try:
+        with open('static/ecdh_public_key.json', 'r') as f:
+            ecdh_public_keys = json.load(f)
+    except FileNotFoundError:
+        print("file not found")
+        ecdh_public_keys = {}
+    except json.JSONDecodeError:
+        print("json decode error")
+        ecdh_public_keys = {}
+
+    public_key = ecdh_public_keys.get(username, None)
+    return {'public_key': public_key}
+
 @app.route('/fetch_messages')
 def fetch_messages():
     if 'user_id' not in session:
@@ -352,7 +396,7 @@ def fetch_messages():
     peer_id = request.args.get('peer_id', type=int)
     
     cur = mysql.connection.cursor()
-    query = """SELECT message_id,sender_id,receiver_id,message_text FROM messages 
+    query = """SELECT message_id,sender_id,receiver_id,message_text,created_at FROM messages 
                WHERE message_id > %s AND 
                ((sender_id = %s AND receiver_id = %s) OR (sender_id = %s AND receiver_id = %s))
                ORDER BY message_id ASC"""
