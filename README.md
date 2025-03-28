@@ -4,6 +4,9 @@
 
 In today's digital landscape, web services have become the primary interface for user interaction. As web browsers serve as gateways to these services, ensuring the security and privacy of communications is paramount. This project implements an end-to-end encrypted (E2EE) chat web application that adheres to modern security standards.
 
+## Description
+A secure chat web application implementing end-to-end encryption (E2EE) using ECDH key exchange, AES-GCM message encryption, and robust authentication mechanisms. Complies with NIST guidelines for digital identity and includes features such as multi-factor authentication (MFA), password strength validation, and protection against common security vulnerabilities.
+
 ## Objectives
 
 1. Transform a basic chat web application into a secure E2EE chat app.
