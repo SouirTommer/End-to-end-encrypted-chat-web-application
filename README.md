@@ -1,11 +1,25 @@
 # End-to-End Encrypted Chat Web Application
 
-## Overview
-
-In today's digital landscape, web services have become the primary interface for user interaction. As web browsers serve as gateways to these services, ensuring the security and privacy of communications is paramount. This project implements an end-to-end encrypted (E2EE) chat web application that adheres to modern security standards.
-
 ## Description
-A secure chat web application implementing end-to-end encryption (E2EE) using ECDH key exchange, AES-GCM message encryption, and robust authentication mechanisms. Complies with NIST guidelines for digital identity and includes features such as multi-factor authentication (MFA), password strength validation, and protection against common security vulnerabilities.
+A secure chat web application implementing end-to-end encryption (E2EE) using ECDH key exchange, AES-GCM message encryption, and robust authentication mechanisms. Complies with NIST guidelines for digital identity and includes features such as multi-factor 
+authentication (MFA), password strength validation, and protection against common security vulnerabilities.
+
+## Architecture
+### Backend
+- **Language:** Python 3
+- **Framework:** Flask
+
+### Frontend
+- **Technologies:** HTML, CSS, JavaScript
+
+### Database
+- **System:** MySQL
+
+### Web Server
+- **Server:** Nginx
+
+### Container
+- **Platform:** Docker
 
 ## Objectives
 
@@ -57,13 +71,19 @@ A secure chat web application implementing end-to-end encryption (E2EE) using EC
 
 #### 2.2.1 Select Contact
 - Upon selecting a contact, the opponent's public key is retrieved to generate a shared key.
+  ![image](https://github.com/user-attachments/assets/4488ccdb-5ed6-46bc-91c1-88bf4ff06516)
+
 
 #### 2.2.2 Send Message
 - ECDH key exchange is performed, followed by AES-GCM message encryption.
 - Keys are stored in HTML5 Local Storage for persistence.
+  ![image](https://github.com/user-attachments/assets/49939386-3298-4c85-bc68-c0d87e7e9f99)
+
 
 #### 2.2.3 Receive Message
 - Messages are decrypted using the AES key and MAC key, with integrity checks performed.
+  ![image](https://github.com/user-attachments/assets/dac50dd7-01d8-4172-90d2-03f3c44440ee)
+
 
 #### 2.2.4 Message Encoding
 - Messages are encoded in UTF-8 and formatted in JSON.
@@ -73,6 +93,8 @@ A secure chat web application implementing end-to-end encryption (E2EE) using EC
 
 #### 2.2.6 Message History
 - Message history persists across sessions, with an option to erase chats.
+  ![image](https://github.com/user-attachments/assets/016284ee-25ca-4ad0-8d36-1c3b31057087)
+
 
 #### 2.2.7 Crypto Operations Logging
 - All crypto operations are logged to the console for transparency.
